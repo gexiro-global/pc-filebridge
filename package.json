@@ -1,0 +1,58 @@
+{
+  "name": "pc-filebridge",
+  "version": "0.1.1",
+  "description": "Create-only filesystem MCP server for ChatGPT, Codex, and other MCP clients.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gexiro-global/pc-filebridge.git"
+  },
+  "homepage": "https://github.com/gexiro-global/pc-filebridge#readme",
+  "bugs": {
+    "url": "https://github.com/gexiro-global/pc-filebridge/issues"
+  },
+  "keywords": [
+    "mcp",
+    "filesystem",
+    "windows",
+    "create-only",
+    "chatgpt",
+    "codex"
+  ],
+  "files": [
+    ".codex-plugin/",
+    ".mcp.json",
+    "config/",
+    "mcp/",
+    "scripts/",
+    "skills/",
+    "README.md",
+    "SECURITY.md",
+    "THREAT_MODEL.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:mcp": "node scripts/mcp-smoke.mjs",
+    "check:secrets": "node scripts/secret-scan.mjs",
+    "verify": "npm run check:secrets && npm run typecheck && npm test && npm run build && npm run test:mcp",
+    "check": "npm run verify"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "esbuild": "0.28.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "pc-filebridge",
+  "version": "0.1.1",
+  "description": "Read files and create new files on explicitly allowed PC folders without overwrite or delete capabilities.",
+  "author": {
+    "name": "Gexiro Global Enterprises Ltd."
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "filesystem",
+    "files",
+    "windows",
+    "create-only",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "PC FileBridge",
+    "shortDescription": "Read files and create new ones without overwrite or delete.",
+    "longDescription": "Create-only filesystem bridge for ChatGPT, Codex, and compatible MCP clients. Access is limited to operator-configured roots; reads are bounded and writes use exclusive create mode. No delete, rename, move, append, patch, or overwrite tools are exposed.",
+    "developerName": "Gexiro Global",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Create-only write"
+    ],
+    "defaultPrompt": [
+      "Show the folders available through PC FileBridge.",
+      "Read a file from my allowed Documents root.",
+      "Create a new file without replacing anything."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

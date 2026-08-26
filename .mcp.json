@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pc-filebridge": {
+      "command": "node",
+      "args": ["./mcp/server.mjs"],
+      "cwd": ".",
+      "env_vars": ["FILEBRIDGE_CONFIG", "FILEBRIDGE_ALLOW_DRIVE_ROOT"],
+      "tool_timeout_sec": 60
+    }
+  }
+}

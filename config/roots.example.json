@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "id": "documents",
+      "label": "Documents",
+      "path": "C:\\Users\\YOUR_WINDOWS_USERNAME\\Documents",
+      "read": true,
+      "create": true
+    }
+  ],
+  "limits": {
+    "maxReadBytes": 262144,
+    "maxWriteBytes": 1048576,
+    "maxDirectoryEntries": 250,
+    "maxSearchResults": 100,
+    "maxSearchEntries": 5000
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "id": "system-drive",
+      "label": "System drive (high-risk opt-in)",
+      "path": "C:\\",
+      "read": true,
+      "create": true
+    }
+  ],
+  "limits": {
+    "maxReadBytes": 262144,
+    "maxWriteBytes": 1048576,
+    "maxDirectoryEntries": 250,
+    "maxSearchResults": 100,
+    "maxSearchEntries": 5000
+  }
+}

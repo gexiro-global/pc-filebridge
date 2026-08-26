@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.1 - 2026-08-26
+
+- Block PuTTY `.ppk`, Java keystores, additional private-key formats, and SSH `id_*` private-key variants.
+- Add regression tests for direct access, directory listing, and filename search filtering.
+- Add fail-closed public configuration, a tracked-file secret scan, CI, CodeQL, threat model, privacy notice, and Apache-2.0 release metadata.
+- Make full-drive tunnel mode an explicit opt-in instead of the default.
+
+## 0.1.0 - 2026-08-26
+
+- Initial create-only MCP server with bounded UTF-8 reads for ChatGPT and Codex.
