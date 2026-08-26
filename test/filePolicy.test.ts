@@ -79,17 +79,31 @@ describe("path containment", () => {
     },
   );
 
-  test("blocks a directory junction or symlink that leaves the root", async () => {
+  test("blocks and hides a directory junction or symlink that leaves the root", async () => {
     const { base, root, policy } = await fixture();
     const outside = path.join(base, "outside");
     await mkdir(outside);
     await writeFile(path.join(outside, "secret.txt"), "outside");
-    try {
-      await symlink(outside, path.join(root, "escape"), process.platform === "win32" ? "junction" : "dir");
-    } catch {
-      return;
-    }
+    await symlink(outside, path.join(root, "escape"), process.platform === "win32" ? "junction" : "dir");
     await expect(policy.readTextFile("test", "escape/secret.txt")).rejects.toMatchObject({ code: "LINK_BLOCKED" });
+    const listing = await policy.listDirectory("test", "");
+    expect(listing.entries.some((entry) => entry.name === "escape")).toBe(false);
+    expect(listing.blocked_entries).toBe(1);
+    const search = await policy.searchNames("test", "secret");
+    expect(search.matches).toEqual([]);
+    expect(search.blocked_entries).toBe(1);
+  });
+
+  test.each([
+    "notes.txt:secret",
+    "CON",
+    "aux.txt",
+    "folder/com1.log",
+    "trailing-dot.",
+    "trailing-space ",
+  ])("blocks Windows alternate streams and reserved path components: %s", async (unsafe) => {
+    const { policy } = await fixture();
+    await expect(policy.statPath("test", unsafe)).rejects.toMatchObject({ code: "INVALID_PATH_COMPONENT" });
   });
 
   test("requires an explicit exact opt-in for a complete drive root", async () => {

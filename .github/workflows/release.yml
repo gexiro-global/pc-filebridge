@@ -1,0 +1,166 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and build immutable artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Verify tag, package version, and main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(node --input-type=commonjs -p "require('./package.json').version")"
+          expected_tag="v${package_version}"
+          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match package version ${package_version}." >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" != "${GITHUB_SHA}" ]]; then
+            echo "The release tag does not resolve to the workflow commit." >&2
+            exit 1
+          fi
+          git fetch --no-tags --force origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "Tagged commit ${GITHUB_SHA} is not on origin/main." >&2
+            exit 1
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify release source
+        run: npm run check
+
+      - name: Build release artifacts and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release
+          mkdir release
+
+          runtime_name="pc-filebridge-${GITHUB_REF_NAME}-runtime-npm.tgz"
+          source_name="pc-filebridge-${GITHUB_REF_NAME}-source.tar.gz"
+          sbom_name="pc-filebridge-${GITHUB_REF_NAME}-sbom.cdx.json"
+
+          package_file="$(npm pack --ignore-scripts --silent)"
+          mv -- "${package_file}" "release/${runtime_name}"
+          git archive \
+            --format=tar.gz \
+            --prefix="pc-filebridge-${GITHUB_REF_NAME}-source/" \
+            --output="release/${source_name}" \
+            "${GITHUB_SHA}"
+          npm sbom --sbom-format cyclonedx > "release/${sbom_name}"
+
+          (
+            cd release
+            sha256sum "${runtime_name}" "${source_name}" "${sbom_name}" > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Verify exact artifacts as an external receiver
+        run: >-
+          node scripts/verify-release-artifact.mjs
+          --release-dir release
+          --tag "${GITHUB_REF_NAME}"
+
+      - name: Preserve verified release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pc-filebridge-release-${{ github.ref_name }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 90
+
+  publish:
+    name: Attest and publish verified artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Re-check release identity
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tag still resolves to an origin/main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(node --input-type=commonjs -p "require('./package.json').version")"
+          [[ "${GITHUB_REF_NAME}" == "v${package_version}" ]]
+          [[ "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" == "${GITHUB_SHA}" ]]
+          git fetch --no-tags --force origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main
+
+      - name: Download verified release bundle
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: pc-filebridge-release-${{ github.ref_name }}
+          path: release
+
+      - name: Re-verify downloaded checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd release
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/pc-filebridge-${{ github.ref_name }}-runtime-npm.tgz
+            release/pc-filebridge-${{ github.ref_name }}-source.tar.gz
+            release/pc-filebridge-${{ github.ref_name }}-sbom.cdx.json
+            release/SHA256SUMS
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            "release/pc-filebridge-${GITHUB_REF_NAME}-runtime-npm.tgz" \
+            "release/pc-filebridge-${GITHUB_REF_NAME}-source.tar.gz" \
+            "release/pc-filebridge-${GITHUB_REF_NAME}-sbom.cdx.json" \
+            "release/SHA256SUMS" \
+            --verify-tag \
+            --generate-notes \
+            --title "PC FileBridge ${GITHUB_REF_NAME}"

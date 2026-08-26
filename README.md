@@ -1,5 +1,9 @@
 # PC FileBridge
 
+[![CI](https://github.com/gexiro-global/pc-filebridge/actions/workflows/ci.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml)
+[![Release](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml)
+
 PC FileBridge is a local Model Context Protocol (MCP) server that gives ChatGPT, Codex, and other MCP clients bounded access to operator-selected folders. It can read UTF-8 text and create new files or directories, but it cannot overwrite, append, rename, move, link, or delete.
 
 The create-only guarantee is enforced by the server. New files use operating-system exclusive create mode (`wx`), so an existing target returns `TARGET_EXISTS` and remains unchanged.
@@ -108,11 +112,33 @@ npm run check
 npm pack --dry-run --ignore-scripts
 ```
 
-`npm run check` performs a tracked-file secret scan, type checking, 21 policy tests, a production build, and a real MCP stdio smoke test that requires exactly seven tools and zero forbidden mutation tools.
+`npm run check` performs a tracked-file secret scan, type checking, policy tests, a production build, and a real MCP stdio smoke test that requires exactly seven tools and zero forbidden mutation tools. Pull requests run the same security gates on Linux and Windows; the Windows job must create and reject a real junction and cannot silently skip that check.
+
+## Release verification
+
+Official releases contain four downloadable files:
+
+- `pc-filebridge-vX.Y.Z-runtime-npm.tgz`
+- `pc-filebridge-vX.Y.Z-source.tar.gz`
+- `pc-filebridge-vX.Y.Z-sbom.cdx.json`
+- `SHA256SUMS`
+
+Download all files into one empty directory and verify the hashes before installation. On Windows:
+
+```powershell
+Get-Content .\SHA256SUMS | ForEach-Object {
+  $hash, $name = $_ -split '  ', 2
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $name).Hash.ToLowerInvariant() -ne $hash) {
+    throw "Checksum mismatch: $name"
+  }
+}
+```
+
+The GitHub release also carries build-provenance attestations. See [Release verification](docs/RELEASE_VERIFICATION.md) and [Release process](docs/RELEASE_PROCESS.md).
 
 ## Privacy and security
 
-PC FileBridge is self-hosted and includes no telemetry. Data requested through MCP is sent to the connected client and is then subject to that client's provider and workspace policies. Read [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), and [THREAT_MODEL.md](THREAT_MODEL.md) before exposing sensitive folders.
+PC FileBridge is self-hosted and includes no telemetry. Data requested through MCP is sent to the connected client and is then subject to that client's provider and workspace policies. Read [ARCHITECTURE.md](ARCHITECTURE.md), [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and [THREAT_MODEL.md](THREAT_MODEL.md) before exposing sensitive folders.
 
 ## License
 
