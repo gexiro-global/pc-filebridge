@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a change that preserves create-only writes and bounded reads.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the operator problem without private data.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security-boundary impact
+      description: Explain effects on roots, reads, creates, redaction, path handling, or remote transport.
+    validations:
+      required: true
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Required invariants
+      options:
+        - label: The proposal adds no overwrite, append, rename, move, link, delete, remove, or unlink capability.
+          required: true
+        - label: The proposal can be tested with synthetic data and narrow roots.
+          required: true

@@ -1,10 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
-  .split("\0")
-  .filter(Boolean);
+const tracked = listSourceFiles();
 
 const blockedPaths = [
   /(^|\/)\.app\.json$/i,
@@ -45,4 +43,28 @@ if (findings.length > 0) {
   process.exitCode = 1;
 } else {
   process.stdout.write(`SECRET_SCAN_PASS files=${tracked.length}\n`);
+}
+
+function listSourceFiles() {
+  try {
+    return execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" })
+      .split("\0")
+      .filter(Boolean);
+  } catch {
+    return walk(".");
+  }
+}
+
+function walk(directory) {
+  const ignoredDirectories = new Set([".git", "node_modules", "release"]);
+  const files = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory() && ignoredDirectories.has(entry.name)) continue;
+    const candidate = path.join(directory, entry.name);
+    const info = lstatSync(candidate);
+    if (info.isSymbolicLink()) continue;
+    if (info.isDirectory()) files.push(...walk(candidate));
+    else if (info.isFile()) files.push(candidate.replace(/^\.([/\\])/, ""));
+  }
+  return files;
 }
