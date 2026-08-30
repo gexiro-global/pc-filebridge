@@ -132,3 +132,32 @@ jobs:
             sha256sum -c SHA256SUMS
           )
           node scripts/verify-release-artifact.mjs --release-dir release-ci --tag "${tag}"
+
+  compatibility-build-status:
+    name: Build, test, and security checks
+    needs: [verify, container-runtime, receiver-simulation]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce aggregate build and security result
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          CONTAINER_RESULT: ${{ needs.container-runtime.result }}
+          RECEIVER_RESULT: ${{ needs.receiver-simulation.result }}
+        run: |
+          test "$VERIFY_RESULT" = "success"
+          test "$CONTAINER_RESULT" = "success"
+          test "$RECEIVER_RESULT" = "success"
+
+  compatibility-windows-status:
+    name: Windows security checks
+    needs: verify
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce Windows matrix result
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        run: test "$VERIFY_RESULT" = "success"
