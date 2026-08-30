@@ -87,7 +87,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
       - name: Build digest-pinned runtime image
-        run: docker build --pull -f deploy/docker/Dockerfile -t pc-filebridge:0.2.1 .
+        run: docker build --pull -f deploy/docker/Dockerfile -t pc-filebridge:0.2.2 .
       - name: Verify container policy, tunnel version, and fail-closed startup
         run: npm run check:container
       - name: Scan complete runtime image

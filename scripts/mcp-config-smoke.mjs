@@ -72,7 +72,7 @@ try {
   await request("initialize", {
     protocolVersion: "2025-06-18",
     capabilities: {},
-    clientInfo: { name: "pc-filebridge-config-smoke", version: "0.2.1" },
+    clientInfo: { name: "pc-filebridge-config-smoke", version: "0.2.2" },
   });
   send({ jsonrpc: "2.0", method: "notifications/initialized", params: {} });
 

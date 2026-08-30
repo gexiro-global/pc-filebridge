@@ -19,7 +19,7 @@ $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Tu
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($connectScript))
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $account
 $principal = New-ScheduledTaskPrincipal -UserId $account -LogonType Interactive -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+$settings = New-ScheduledTaskSettingsSet -Compatibility Win8 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Starts the private OpenAI Secure MCP Tunnel for PC FileBridge after user logon.' | Out-Null
 Write-Output "AUTOSTART_INSTALLED task=$TaskName overwrite=false"

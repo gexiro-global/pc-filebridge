@@ -82,7 +82,7 @@ For ChatGPT, create a dedicated Secure MCP Tunnel and a dedicated runtime API ke
 
 The tunnel runtime must run on the computer that owns the configured folders. A VPS deployment can remain available while personal devices are offline, but it exposes files stored in its persistent server volume; it does not make a powered-off PC disk remotely readable. See [VPS deployment](docs/VPS_DEPLOYMENT.md).
 
-Version 0.2.1 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
+Version 0.2.2 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
 
 ChatGPT cannot securely infer which physical device opened a conversation. Operators must select the clearly named PC, laptop, or infrastructure connector. Local Codex can instead use its device-local stdio configuration.
 
@@ -114,13 +114,13 @@ After a successful manual connection:
 
 The installer creates a new per-user scheduled task and refuses to replace an existing task.
 
-For role-bound automatic volume discovery, configure the task or a hidden per-user Startup shortcut to run:
+For role-bound automatic volume discovery, install the dedicated per-user task:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\scripts\Connect-PCFileBridgeRoleTunnel-Task.ps1 -Role pc-local
+.\scripts\Install-PCFileBridgeRoleAutostart.ps1 -Role pc-local
 ```
 
-The task script runs a singleton monitor and does not contain a tunnel identifier or API key in its arguments.
+If the protected tunnel runtime intentionally uses a separate local application-data directory, pass its absolute path with `-RuntimeLocalAppData`. The task script runs a singleton monitor and does not contain a tunnel identifier or API key in its arguments. Both installers create long-running tasks with no finite execution limit and do not stop them on battery or idle transitions; they refuse to replace an existing task.
 
 ## Full-drive mode
 
