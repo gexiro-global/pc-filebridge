@@ -1,6 +1,6 @@
 # Tunnel roles and device isolation
 
-PC FileBridge 0.2.1 uses three distinct Secure MCP Tunnel identities. A tunnel identifier must never be shared by two roles or by two active pollers.
+PC FileBridge 0.2.2 uses three distinct Secure MCP Tunnel identities. A tunnel identifier must never be shared by two roles or by two active pollers.
 
 | Role | Required tunnel name | Runtime alias | Root ids |
 |---|---|---|---|

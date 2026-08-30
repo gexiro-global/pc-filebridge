@@ -1,6 +1,6 @@
 {
   "name": "pc-filebridge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Create-only filesystem MCP server for ChatGPT, Codex, and other MCP clients.",
   "license": "Apache-2.0",
   "repository": {

@@ -4,6 +4,50 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const contract = JSON.parse(await readFile(path.join(root, "config", "tunnel-roles.json"), "utf8"));
+const autostartInstallers = await Promise.all(
+  ["Install-PCFileBridgeAutostart.ps1", "Install-PCFileBridgeRoleAutostart.ps1"].map((name) =>
+    readFile(path.join(root, "scripts", name), "utf8"),
+  ),
+);
+const roleTask = await readFile(
+  path.join(root, "scripts", "Connect-PCFileBridgeRoleTunnel-Task.ps1"),
+  "utf8",
+);
+const volumeMonitor = await readFile(
+  path.join(root, "scripts", "Start-PCFileBridgeVolumeMonitor.ps1"),
+  "utf8",
+);
+for (const roleEntryPoint of [autostartInstallers[1], roleTask, volumeMonitor]) {
+  if (!roleEntryPoint.includes("$Role = $Role.ToLowerInvariant()")) {
+    throw new Error("Role entry points must normalize case before case-sensitive contract checks.");
+  }
+}
+for (const windowsPowerShellScript of [...autostartInstallers, roleTask]) {
+  if (windowsPowerShellScript.includes("IsPathFullyQualified")) {
+    throw new Error("Windows PowerShell 5.1 scripts must not call IsPathFullyQualified.");
+  }
+}
+const requiredAutostartSettings = [
+  "-Compatibility Win8",
+  "-AllowStartIfOnBatteries",
+  "-DontStopIfGoingOnBatteries",
+  "-StartWhenAvailable",
+  "-DontStopOnIdleEnd",
+  "-ExecutionTimeLimit ([TimeSpan]::Zero)",
+  "-MultipleInstances IgnoreNew",
+  "-RestartCount 5",
+  "-RestartInterval (New-TimeSpan -Minutes 1)",
+];
+for (const autostartInstaller of autostartInstallers) {
+  for (const setting of requiredAutostartSettings) {
+    if (!autostartInstaller.includes(setting)) {
+      throw new Error(`Autostart installer is missing durable setting: ${setting}`);
+    }
+  }
+  if (/ExecutionTimeLimit\s+\(New-TimeSpan/i.test(autostartInstaller)) {
+    throw new Error("Autostart installer must not impose a finite execution time limit.");
+  }
+}
 const volumePolicy = (rootIdPrefix) => ({
   enabled: true,
   driveType: 3,

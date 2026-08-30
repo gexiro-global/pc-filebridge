@@ -22,6 +22,7 @@ const required = [
   "config/tunnel-roles.json",
   "scripts/Connect-PCFileBridgeRoleTunnel.ps1",
   "scripts/Connect-PCFileBridgeRoleTunnel-Task.ps1",
+  "scripts/Install-PCFileBridgeRoleAutostart.ps1",
   "scripts/Set-PCFileBridgeGate.ps1",
   "scripts/Start-PCFileBridgeVolumeMonitor.ps1",
   "scripts/Test-PCFileBridgeRoleConfig.ps1",

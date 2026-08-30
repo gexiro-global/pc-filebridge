@@ -13504,7 +13504,7 @@ async function main() {
   const configPath = path2.resolve(process.env.FILEBRIDGE_CONFIG ?? path2.join(pluginRoot, "config", "roots.local.json"));
   const policy = await FileBridgePolicy.fromFile(configPath);
   const server = new McpServer(
-    { name: "pc-filebridge", version: "0.2.1" },
+    { name: "pc-filebridge", version: "0.2.2" },
     {
       instructions: "Create-only filesystem bridge. Use only configured root IDs and relative paths. Reads are bounded and secret-redacted. Writes may create a new file or directory only. Overwrite, append, patch, rename, move, link traversal, and delete are unavailable and must never be claimed."
     }

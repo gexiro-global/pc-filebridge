@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const image = process.env.FILEBRIDGE_IMAGE ?? "pc-filebridge:0.2.1";
+const image = process.env.FILEBRIDGE_IMAGE ?? "pc-filebridge:0.2.2";
 const expectedTunnelVersion = "0.0.13";
 const expectedNodeVersion = "v24.20.0";
 const expectedTools = [
@@ -74,7 +74,7 @@ try {
 }
 if (!failedClosed) throw new Error("Container did not fail closed when secrets were absent.");
 
-const client = new Client({ name: "pc-filebridge-container-smoke", version: "0.2.1" });
+const client = new Client({ name: "pc-filebridge-container-smoke", version: "0.2.2" });
 const transport = new StdioClientTransport({
   command: "docker",
   args: [

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 - 2026-08-30
+
+- Fixed Windows autostart durability: the tunnel task now has no finite execution limit and is not stopped by battery or idle transitions.
+- Added a Windows PowerShell 5.1-compatible role-bound auto-volume task installer with optional isolated runtime state.
+- Canonicalized role casing before task registration and case-sensitive contract lookup.
+- Added a regression contract for the required long-running Scheduled Task settings.
+
 ## 0.2.1 - 2026-08-30
 
 - Derive a stable, opaque volume id from host, disk, partition, volume, and serial identity; drive-letter, label, health, filesystem, and bus changes do not change that id.
