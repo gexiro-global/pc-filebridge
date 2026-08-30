@@ -51,7 +51,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build": "esbuild src/server.ts --bundle --external:zod --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run test/filePolicy.test.ts",
     "test:windows-8dot3": "vitest run test/windows-8dot3.integration.windows.test.ts",
