@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "id": "primary-data",
+      "label": "Primary infrastructure data",
+      "path": "/data/primary",
+      "read": true,
+      "create": true
+    },
+    {
+      "id": "secondary-data",
+      "label": "Secondary infrastructure data",
+      "path": "/data/secondary",
+      "read": true,
+      "create": true
+    }
+  ],
+  "limits": {
+    "maxReadBytes": 262144,
+    "maxWriteBytes": 1048576,
+    "maxDirectoryEntries": 250,
+    "maxSearchResults": 100,
+    "maxSearchEntries": 5000
+  }
+}

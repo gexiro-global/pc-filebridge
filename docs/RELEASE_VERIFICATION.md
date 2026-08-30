@@ -22,6 +22,7 @@ With GitHub CLI authenticated:
 gh attestation verify pc-filebridge-vX.Y.Z-runtime-npm.tgz --repo gexiro-global/pc-filebridge
 gh attestation verify pc-filebridge-vX.Y.Z-source.tar.gz --repo gexiro-global/pc-filebridge
 gh attestation verify pc-filebridge-vX.Y.Z-sbom.cdx.json --repo gexiro-global/pc-filebridge
+gh attestation verify SHA256SUMS --repo gexiro-global/pc-filebridge
 ```
 
 The subject digest must match the downloaded file and the workflow source must be this repository.
@@ -36,4 +37,4 @@ Expected result:
 MCP_SMOKE_PASS tools=7 forbidden_mutations=0 list_roots=ok
 ```
 
-A matching hash alone is not proof that the package installs or preserves the MCP security invariants.
+A matching hash alone is not proof that the package installs or preserves the MCP security invariants. The release is accepted only after all four public assets are downloaded again, basename-only checksums pass, all four provenance subjects match, and the runtime archive passes this clean-room receiver simulation.

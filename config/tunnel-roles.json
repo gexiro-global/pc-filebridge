@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "roles": [
+    {
+      "id": "pc-local",
+      "hostId": "pc-main",
+      "expectedTunnelName": "PC FileBridge - PC Local",
+      "alias": "pc-filebridge-pc-local",
+      "gateRequired": true,
+      "rootIds": ["pc-c", "pc-d"],
+      "requiredRootIds": ["pc-c"],
+      "rootPaths": { "pc-c": "C:\\", "pc-d": "D:\\" },
+      "volumeDiscovery": {
+        "enabled": true,
+        "driveType": 3,
+        "rootIdPrefix": "pc-",
+        "allowedBusTypes": ["NVMe", "SATA", "SAS", "RAID", "Storage Spaces", "SCM"],
+        "allowedFileSystems": ["NTFS"],
+        "requireHealthy": true
+      }
+    },
+    {
+      "id": "laptop-local",
+      "hostId": "laptop-main",
+      "expectedTunnelName": "PC FileBridge - Laptop Local",
+      "alias": "pc-filebridge-laptop-local",
+      "gateRequired": true,
+      "rootIds": ["laptop-c", "laptop-d"],
+      "requiredRootIds": ["laptop-c"],
+      "rootPaths": { "laptop-c": "C:\\", "laptop-d": "D:\\" },
+      "volumeDiscovery": {
+        "enabled": true,
+        "driveType": 3,
+        "rootIdPrefix": "laptop-",
+        "allowedBusTypes": ["NVMe", "SATA", "SAS", "RAID", "Storage Spaces", "SCM"],
+        "allowedFileSystems": ["NTFS"],
+        "requireHealthy": true
+      }
+    },
+    {
+      "id": "infrastructure",
+      "expectedTunnelName": "PC FileBridge - Infrastructure",
+      "alias": "pc-filebridge-infrastructure",
+      "gateRequired": false,
+      "rootIds": ["primary-data", "secondary-data", "agent-data"],
+      "requiredRootIds": ["primary-data", "secondary-data"],
+      "rootPaths": {
+        "primary-data": "/data/primary",
+        "secondary-data": "/data/secondary",
+        "agent-data": "/data/agent"
+      }
+    }
+  ]
+}

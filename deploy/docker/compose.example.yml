@@ -1,0 +1,55 @@
+name: pc-filebridge
+
+services:
+  filebridge:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: pc-filebridge:0.2.1
+    container_name: pc-filebridge
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      FILEBRIDGE_ROLE: infrastructure
+      EXPECTED_TUNNEL_NAME: "PC FileBridge - Infrastructure"
+      FILEBRIDGE_CONFIG: /app/config/roots.infrastructure.json
+      OPENAI_API_KEY_FILE: /run/pc-filebridge-secrets/OPENAI_API_KEY
+      TUNNEL_ID_FILE: /run/pc-filebridge-secrets/TUNNEL_ID
+      HEALTH_LISTEN_ADDR: 127.0.0.1:8080
+      LOG_FORMAT: json
+      LOG_LEVEL: warn
+      TUNNEL_HEALTH_MAX_AGE_SECONDS: 180
+    volumes:
+      - pc-filebridge-data:/data
+      - pc-filebridge-secrets:/run/pc-filebridge-secrets:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - /usr/local/lib/pc-filebridge/healthcheck.mjs
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  pc-filebridge-data:
+    external: true
+  pc-filebridge-secrets:
+    external: true

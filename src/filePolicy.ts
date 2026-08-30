@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { open, lstat, mkdir, opendir, readFile, realpath } from "node:fs/promises";
+import type { BigIntStats } from "node:fs";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 import { z } from "zod";
@@ -10,6 +11,13 @@ const RootConfigSchema = z.object({
   path: z.string().min(1),
   read: z.boolean(),
   create: z.boolean(),
+  host_id: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/).optional(),
+  volume_id: z.string().regex(/^vol-[a-f0-9]{16}$/).optional(),
+  current_drive_letter: z.string().regex(/^[A-Z]$/).optional(),
+  filesystem: z.string().min(1).max(32).optional(),
+  bus_type: z.string().min(1).max(64).optional(),
+  online: z.boolean().optional(),
+  auto_discovered: z.boolean().optional(),
 }).strict();
 
 const LimitsSchema = z.object({
@@ -22,7 +30,7 @@ const LimitsSchema = z.object({
 
 export const FileBridgeConfigSchema = z.object({
   version: z.literal(1),
-  roots: z.array(RootConfigSchema).min(1).max(16),
+  roots: z.array(RootConfigSchema).min(1).max(26),
   limits: LimitsSchema,
 }).strict();
 
@@ -32,6 +40,16 @@ type Limits = z.infer<typeof LimitsSchema>;
 
 interface RuntimeRoot extends RootConfig {
   canonicalPath: string;
+  identity: FileIdentity;
+}
+
+type FileIdentity = Pick<BigIntStats, "dev" | "ino">;
+type FileIdentityInput = { dev: number | bigint; ino: number | bigint };
+
+interface AuthorizedExistingPath {
+  target: string;
+  info: BigIntStats;
+  storedParts: string[];
 }
 
 export class PolicyError extends Error {
@@ -97,6 +115,7 @@ const BLOCKED_EXTENSIONS = new Set([
 const SSH_PRIVATE_KEY_FILENAME = /^id_(?:rsa|dsa|ecdsa|ed25519)(?:[._-].*)?$/;
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 const DRIVE_ROOT_OPT_IN = "I_ACCEPT_FULL_DRIVE_ACCESS_RISK";
+const MAX_CANONICALIZATION_ENTRIES = 25_000;
 
 export interface ReadTextResult {
   root_id: string;
@@ -142,11 +161,14 @@ export class FileBridgePolicy {
       }
 
       let canonicalPath: string;
+      let rootInfo: BigIntStats;
       try {
-        canonicalPath = await realpath(path.resolve(configured.path));
-        const info = await lstat(canonicalPath);
-        if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("not a real directory");
-      } catch {
+        const authorized = await authorizeConfiguredRoot(configured.path);
+        canonicalPath = authorized.target;
+        rootInfo = authorized.info;
+        if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) throw new Error("not a real directory");
+      } catch (error) {
+        if (error instanceof PolicyError) throw error;
         throw new PolicyError("CONFIG_ROOT_UNAVAILABLE", `Configured root '${configured.id}' is unavailable.`);
       }
 
@@ -157,38 +179,59 @@ export class FileBridgePolicy {
         );
       }
 
-      roots.set(configured.id, { ...configured, canonicalPath });
+      roots.set(configured.id, { ...configured, canonicalPath, identity: identityOf(rootInfo) });
     }
 
     return new FileBridgePolicy(roots, validated.limits);
   }
 
-  listRoots(): Array<{ id: string; label: string; read: boolean; create: boolean; full_drive: boolean }> {
+  listRoots(): Array<{
+    id: string;
+    label: string;
+    read: boolean;
+    create: boolean;
+    full_drive: boolean;
+    host_id?: string;
+    volume_id?: string;
+    current_drive_letter?: string;
+    filesystem?: string;
+    bus_type?: string;
+    online?: boolean;
+    auto_discovered?: boolean;
+  }> {
     return [...this.roots.values()].map((root) => ({
       id: root.id,
       label: root.label,
       read: root.read,
       create: root.create,
       full_drive: isFilesystemRoot(root.canonicalPath),
+      ...(root.host_id === undefined ? {} : { host_id: root.host_id }),
+      ...(root.volume_id === undefined ? {} : { volume_id: root.volume_id }),
+      ...(root.current_drive_letter === undefined ? {} : { current_drive_letter: root.current_drive_letter }),
+      ...(root.filesystem === undefined ? {} : { filesystem: root.filesystem }),
+      ...(root.bus_type === undefined ? {} : { bus_type: root.bus_type }),
+      ...(root.online === undefined ? {} : { online: root.online }),
+      ...(root.auto_discovered === undefined ? {} : { auto_discovered: root.auto_discovered }),
     }));
   }
 
   async statPath(rootId: string, relativePath: string) {
     const resolved = await this.resolveForRead(rootId, relativePath);
-    const info = await lstat(resolved.target);
+    const info = resolved.info;
     if (info.isSymbolicLink()) throw new PolicyError("LINK_BLOCKED", "Links and junctions are blocked.");
+    await assertUnchanged(resolved.target, info);
     return {
       root_id: rootId,
       path: logicalPath(relativePath),
       kind: info.isFile() ? "file" : info.isDirectory() ? "directory" : "other",
-      size: info.size,
+      size: Number(info.size),
       modified_at: info.mtime.toISOString(),
     };
   }
 
   async listDirectory(rootId: string, relativePath: string, requestedLimit?: number) {
     const resolved = await this.resolveForRead(rootId, relativePath);
-    const directoryInfo = await lstat(resolved.target);
+    const directoryInfo = resolved.info;
     if (!directoryInfo.isDirectory()) throw new PolicyError("NOT_A_DIRECTORY", "The requested path is not a directory.");
 
     const limit = Math.min(requestedLimit ?? this.limits.maxDirectoryEntries, this.limits.maxDirectoryEntries);
@@ -210,13 +253,14 @@ export class FileBridgePolicy {
         kind: entry.isFile() ? "file" : entry.isDirectory() ? "directory" : "other",
       });
     }
+    await assertUnchanged(resolved.target, directoryInfo);
     entries.sort((left, right) => left.name.localeCompare(right.name));
     return { root_id: rootId, path: logicalPath(relativePath), entries, blocked_entries, truncated };
   }
 
   async readTextFile(rootId: string, relativePath: string, requestedMaxBytes?: number): Promise<ReadTextResult> {
     const resolved = await this.resolveForRead(rootId, relativePath);
-    const before = await lstat(resolved.target);
+    const before = resolved.info;
     if (!before.isFile() || before.isSymbolicLink()) {
       throw new PolicyError("NOT_A_REGULAR_FILE", "Only regular files can be read.");
     }
@@ -224,22 +268,22 @@ export class FileBridgePolicy {
     const limit = Math.min(requestedMaxBytes ?? this.limits.maxReadBytes, this.limits.maxReadBytes);
     const handle = await open(resolved.target, "r");
     try {
-      const after = await handle.stat();
-      if (!after.isFile() || !sameFile(before, after)) {
+      const after = await handle.stat({ bigint: true });
+      if (!after.isFile() || !sameFileIdentity(before, after)) {
         throw new PolicyError("PATH_CHANGED", "The file changed while it was being opened.");
       }
-      const bytesToRead = Math.min(after.size, limit);
+      const bytesToRead = Number(after.size < BigInt(limit) ? after.size : BigInt(limit));
       const buffer = Buffer.alloc(bytesToRead);
       const { bytesRead } = await handle.read(buffer, 0, bytesToRead, 0);
       const returned = buffer.subarray(0, bytesRead);
-      const text = decodeUtf8(returned, after.size > bytesRead);
+      const text = decodeUtf8(returned, after.size > BigInt(bytesRead));
       const redacted = redactSecrets(text);
       return {
         root_id: rootId,
         path: logicalPath(relativePath),
         bytes_returned: bytesRead,
-        file_bytes: after.size,
-        truncated: after.size > bytesRead,
+        file_bytes: Number(after.size),
+        truncated: after.size > BigInt(bytesRead),
         sha256_returned: createHash("sha256").update(returned).digest("hex"),
         redactions: redacted.count,
         text: redacted.text,
@@ -253,7 +297,7 @@ export class FileBridgePolicy {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     if (!normalizedQuery) throw new PolicyError("INVALID_QUERY", "Search query cannot be empty.");
     const start = await this.resolveForRead(rootId, startPath);
-    const startInfo = await lstat(start.target);
+    const startInfo = start.info;
     if (!startInfo.isDirectory()) throw new PolicyError("NOT_A_DIRECTORY", "Search start path is not a directory.");
 
     const queue = [logicalPath(startPath) === "." ? "" : logicalPath(startPath)];
@@ -301,11 +345,19 @@ export class FileBridgePolicy {
   async createDirectory(rootId: string, relativePath: string) {
     const resolved = await this.resolveForCreate(rootId, relativePath);
     if (!resolved.normalizedRelative) throw new PolicyError("ROOT_WRITE_BLOCKED", "The configured root cannot be created or replaced.");
-    await this.assertCreateParent(resolved.root, resolved.target);
     try {
       await mkdir(resolved.target, { recursive: false });
     } catch (error) {
       throw translateCreateError(error);
+    }
+    await assertUnchanged(resolved.parent.target, resolved.parent.info);
+    try {
+      await authorizeExistingPath(resolved.root, resolved.normalizedRelative);
+    } catch {
+      throw new PolicyError(
+        "CREATE_INCOMPLETE",
+        "The new directory was created but post-create authorization failed; FileBridge will not delete it automatically.",
+      );
     }
     return { root_id: rootId, path: logicalPath(relativePath), created: true, kind: "directory" as const };
   }
@@ -318,8 +370,6 @@ export class FileBridgePolicy {
     if (data.byteLength > this.limits.maxWriteBytes) {
       throw new PolicyError("WRITE_LIMIT_EXCEEDED", `New file content exceeds the ${this.limits.maxWriteBytes}-byte limit.`);
     }
-    await this.assertCreateParent(resolved.root, resolved.target);
-
     let handle;
     try {
       handle = await open(resolved.target, "wx", 0o600);
@@ -327,8 +377,18 @@ export class FileBridgePolicy {
       throw translateCreateError(error);
     }
     try {
+      const [opened, named] = await Promise.all([handle.stat({ bigint: true }), lstat(resolved.target, { bigint: true })]);
+      if (!opened.isFile() || named.isSymbolicLink() || !sameFileIdentity(opened, named)) {
+        throw new PolicyError("PATH_CHANGED", "The new file path changed while it was being opened.");
+      }
+      await assertUnchanged(resolved.parent.target, resolved.parent.info);
       await handle.writeFile(data);
       await handle.sync();
+      const [written, finalNamed] = await Promise.all([handle.stat({ bigint: true }), lstat(resolved.target, { bigint: true })]);
+      if (!written.isFile() || finalNamed.isSymbolicLink() || !sameFileIdentity(written, finalNamed)) {
+        throw new PolicyError("PATH_CHANGED", "The new file path changed while it was being written.");
+      }
+      await assertUnchanged(resolved.parent.target, resolved.parent.info);
     } catch {
       throw new PolicyError(
         "WRITE_INCOMPLETE",
@@ -358,44 +418,33 @@ export class FileBridgePolicy {
 
   private async resolveForRead(rootId: string, relativePath: string) {
     const root = this.getRoot(rootId, "read");
-    const resolved = resolveLogicalPath(root, relativePath);
-    await assertNoLinks(root.canonicalPath, resolved.target);
-    let canonicalTarget: string;
-    try {
-      canonicalTarget = await realpath(resolved.target);
-    } catch {
-      throw new PolicyError("PATH_NOT_FOUND", "The requested path does not exist.");
-    }
-    if (!isWithin(root.canonicalPath, canonicalTarget)) throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
-    return resolved;
+    const normalizedRelative = validateRelativePath(relativePath);
+    const authorized = await authorizeExistingPath(root, normalizedRelative);
+    return { root, normalizedRelative, ...authorized };
   }
 
   private async resolveForCreate(rootId: string, relativePath: string) {
     const root = this.getRoot(rootId, "create");
-    const resolved = resolveLogicalPath(root, relativePath);
-    await assertNoLinks(root.canonicalPath, path.dirname(resolved.target));
-    return resolved;
-  }
-
-  private async assertCreateParent(root: RuntimeRoot, target: string): Promise<void> {
-    const parent = path.dirname(target);
-    let canonicalParent: string;
-    try {
-      canonicalParent = await realpath(parent);
-      const parentInfo = await lstat(parent);
-      if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink()) throw new Error("unsafe parent");
-    } catch {
+    const normalizedRelative = validateRelativePath(relativePath);
+    const parts = splitNormalizedPath(normalizedRelative);
+    if (parts.length === 0) {
+      return {
+        root,
+        target: root.canonicalPath,
+        normalizedRelative,
+        parent: await authorizeExistingPath(root, ""),
+      };
+    }
+    const leaf = parts.pop()!;
+    const parentRelative = parts.join(path.sep);
+    const parent = await authorizeExistingPath(root, parentRelative);
+    if (!parent.info.isDirectory()) {
       throw new PolicyError("PARENT_UNAVAILABLE", "The parent directory must already exist and cannot be a link.");
     }
-    if (!isWithin(root.canonicalPath, canonicalParent)) throw new PolicyError("PATH_ESCAPE_BLOCKED", "Parent escapes the configured root.");
+    const target = path.join(parent.target, leaf);
+    if (!isWithin(root.canonicalPath, target)) throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
+    return { root, target, normalizedRelative, parent };
   }
-}
-
-function resolveLogicalPath(root: RuntimeRoot, relativePath: string) {
-  const normalizedRelative = validateRelativePath(relativePath);
-  const target = path.resolve(root.canonicalPath, normalizedRelative || ".");
-  if (!isWithin(root.canonicalPath, target)) throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
-  return { root, target, normalizedRelative };
 }
 
 function validateRelativePath(input: string): string {
@@ -403,15 +452,26 @@ function validateRelativePath(input: string): string {
   if (path.isAbsolute(input) || path.win32.isAbsolute(input) || path.posix.isAbsolute(input)) {
     throw new PolicyError("ABSOLUTE_PATH_BLOCKED", "Use a configured root id and a relative path.");
   }
+  if ((input.includes("/") && input.includes("\\")) || /[\\/]{2,}/u.test(input)) {
+    throw new PolicyError("AMBIGUOUS_PATH_BLOCKED", "Mixed or repeated path separators are not allowed.");
+  }
   const parts = input.split(/[\\/]+/).filter(Boolean);
   for (const part of parts) {
-    if (part === "." || part === "..") throw new PolicyError("PATH_TRAVERSAL_BLOCKED", "Dot segments are not allowed.");
-    if (/[<>:"|?*\u0000-\u001f]/u.test(part) || /[. ]$/u.test(part) || WINDOWS_RESERVED.test(part)) {
-      throw new PolicyError("INVALID_PATH_COMPONENT", "Path contains a blocked Windows path component.");
-    }
-    if (isBlockedPart(part)) throw new PolicyError("SENSITIVE_PATH_BLOCKED", "Sensitive credential or system paths are blocked.");
+    validatePathComponent(part);
   }
   return parts.join(path.sep);
+}
+
+function validatePathComponent(part: string): void {
+  validatePathComponentSyntax(part);
+  if (isBlockedPart(part)) throw new PolicyError("SENSITIVE_PATH_BLOCKED", "Sensitive credential or system paths are blocked.");
+}
+
+function validatePathComponentSyntax(part: string): void {
+  if (part === "." || part === "..") throw new PolicyError("PATH_TRAVERSAL_BLOCKED", "Dot segments are not allowed.");
+  if (/[<>:"|?*\u0000-\u001f]/u.test(part) || /[. ]$/u.test(part) || WINDOWS_RESERVED.test(part)) {
+    throw new PolicyError("INVALID_PATH_COMPONENT", "Path contains a blocked Windows path component.");
+  }
 }
 
 function isBlockedPart(part: string): boolean {
@@ -423,21 +483,186 @@ function isBlockedPart(part: string): boolean {
     || BLOCKED_EXTENSIONS.has(path.extname(lower));
 }
 
-async function assertNoLinks(root: string, target: string): Promise<void> {
-  if (!isWithin(root, target)) throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
-  const relative = path.relative(root, target);
+async function authorizeConfiguredRoot(configuredPath: string): Promise<AuthorizedExistingPath> {
+  const absolute = path.resolve(configuredPath);
+  const filesystemRoot = path.parse(absolute).root;
+  const relative = path.relative(filesystemRoot, absolute);
   const parts = relative ? relative.split(path.sep) : [];
-  let current = root;
-  for (const part of ["", ...parts]) {
-    if (part) current = path.join(current, part);
+  for (const part of parts) validatePathComponentSyntax(part);
+
+  let rootInfo: BigIntStats;
+  try {
+    rootInfo = await lstat(filesystemRoot, { bigint: true });
+  } catch {
+    throw new PolicyError("CONFIG_ROOT_UNAVAILABLE", "Configured root filesystem is unavailable.");
+  }
+  assertSafeObject(rootInfo);
+  const result = await authorizeStoredComponents(
+    filesystemRoot,
+    rootInfo,
+    parts,
+    filesystemRoot,
+    false,
+    Math.max(parts.length - 1, 0),
+  );
+  if (!result.info.isDirectory()) {
+    throw new PolicyError("CONFIG_ROOT_UNAVAILABLE", "Configured root must be a directory.");
+  }
+  if (result.storedParts.length > 0 && isBlockedPart(result.storedParts.at(-1)!)) {
+    throw new PolicyError("SENSITIVE_PATH_BLOCKED", "A configured root cannot itself be a sensitive path.");
+  }
+  return result;
+}
+
+async function authorizeExistingPath(root: RuntimeRoot, normalizedRelative: string): Promise<AuthorizedExistingPath> {
+  let rootInfo: BigIntStats;
+  try {
+    rootInfo = await lstat(root.canonicalPath, { bigint: true });
+  } catch {
+    throw new PolicyError("PATH_UNAVAILABLE", "The configured root is unavailable.");
+  }
+  assertSafeObject(rootInfo);
+  if (!sameFileIdentity(root.identity, rootInfo)) {
+    throw new PolicyError("PATH_CHANGED", "The configured root changed after startup.");
+  }
+  const parts = splitNormalizedPath(normalizedRelative);
+  return authorizeStoredComponents(root.canonicalPath, rootInfo, parts, root.canonicalPath);
+}
+
+async function authorizeStoredComponents(
+  start: string,
+  startInfo: BigIntStats,
+  suppliedParts: string[],
+  boundary: string,
+  enforceSensitiveNames = true,
+  enforceAlternateFromIndex = 0,
+): Promise<AuthorizedExistingPath> {
+  let current = start;
+  let currentInfo = startInfo;
+  const storedParts: string[] = [];
+
+  for (let partIndex = 0; partIndex < suppliedParts.length; partIndex += 1) {
+    const suppliedPart = suppliedParts[partIndex]!;
+    if (!currentInfo.isDirectory()) {
+      throw new PolicyError("PATH_NOT_FOUND", "A parent path component is not a directory.");
+    }
+    const suppliedTarget = path.join(current, suppliedPart);
+    if (!isWithin(boundary, suppliedTarget)) {
+      throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
+    }
+
+    let suppliedInfo: BigIntStats;
     try {
-      const info = await lstat(current);
-      if (info.isSymbolicLink()) throw new PolicyError("LINK_BLOCKED", "Links and junctions are blocked.");
+      suppliedInfo = await lstat(suppliedTarget, { bigint: true });
     } catch (error) {
-      if (error instanceof PolicyError) throw error;
-      if (isNodeError(error) && error.code === "ENOENT") return;
+      if (isNodeError(error) && error.code === "ENOENT") {
+        throw new PolicyError("PATH_NOT_FOUND", "The requested path does not exist.");
+      }
       throw new PolicyError("PATH_UNAVAILABLE", "A path component is unavailable.");
     }
+    assertSafeObject(suppliedInfo);
+
+    const matches: Array<{ name: string; info: BigIntStats }> = [];
+    let scanned = 0;
+    let directory;
+    try {
+      directory = await opendir(current);
+      for await (const entry of directory) {
+        scanned += 1;
+        if (scanned > MAX_CANONICALIZATION_ENTRIES) {
+          throw new PolicyError("PATH_IDENTITY_UNAVAILABLE", "Directory identity mapping exceeded the safety bound.");
+        }
+        let candidateInfo: BigIntStats;
+        try {
+          candidateInfo = await lstat(path.join(current, entry.name), { bigint: true });
+        } catch {
+          continue;
+        }
+        if (!hasStableIdentity(candidateInfo)) continue;
+        if (sameFileIdentity(suppliedInfo, candidateInfo)) matches.push({ name: entry.name, info: candidateInfo });
+      }
+    } finally {
+      await directory?.close().catch(() => undefined);
+    }
+
+    await assertUnchanged(current, currentInfo);
+    if (matches.length === 0) {
+      throw new PolicyError("PATH_IDENTITY_UNAVAILABLE", "The stored path name could not be established safely.");
+    }
+    if (matches.length !== 1) {
+      throw new PolicyError("PATH_IDENTITY_AMBIGUOUS", "Multiple stored names identify the same filesystem object.");
+    }
+
+    const stored = matches[0]!;
+    if (enforceSensitiveNames && isBlockedPart(stored.name)) {
+      throw new PolicyError("SENSITIVE_PATH_BLOCKED", "Sensitive credential or system paths are blocked.");
+    }
+    if (partIndex >= enforceAlternateFromIndex && !sameSpellingOrWindowsCase(suppliedPart, stored.name)) {
+      throw new PolicyError("ALTERNATE_NAME_BLOCKED", "Alternate filesystem names are blocked.");
+    }
+
+    const storedTarget = path.join(current, stored.name);
+    await assertUnchanged(storedTarget, suppliedInfo);
+    const canonicalTarget = await realpath(storedTarget).catch(() => {
+      throw new PolicyError("PATH_CHANGED", "A path component changed during canonicalization.");
+    });
+    if (!isWithin(boundary, canonicalTarget)) {
+      throw new PolicyError("PATH_ESCAPE_BLOCKED", "Path escapes the configured root.");
+    }
+    await assertUnchanged(canonicalTarget, suppliedInfo);
+    current = canonicalTarget;
+    currentInfo = stored.info;
+    storedParts.push(stored.name);
+  }
+
+  if (currentInfo.isFile() && currentInfo.nlink > 1n) {
+    throw new PolicyError("HARDLINK_BLOCKED", "Files with multiple hard links are blocked.");
+  }
+  return { target: current, info: currentInfo, storedParts };
+}
+
+function splitNormalizedPath(value: string): string[] {
+  return value ? value.split(path.sep) : [];
+}
+
+function sameSpellingOrWindowsCase(supplied: string, stored: string): boolean {
+  if (supplied === stored) return true;
+  return process.platform === "win32" && supplied.toLowerCase() === stored.toLowerCase();
+}
+
+function assertSafeObject(info: BigIntStats): void {
+  if (info.isSymbolicLink()) throw new PolicyError("LINK_BLOCKED", "Links and junctions are blocked.");
+  if (!info.isFile() && !info.isDirectory()) {
+    throw new PolicyError("UNSUPPORTED_OBJECT_BLOCKED", "Unsupported filesystem objects and reparse points are blocked.");
+  }
+  assertStableIdentity(info);
+}
+
+function assertStableIdentity(info: FileIdentity): void {
+  if (!hasStableIdentity(info)) {
+    throw new PolicyError("PATH_IDENTITY_UNAVAILABLE", "Stable filesystem identity is unavailable.");
+  }
+}
+
+function hasStableIdentity(info: FileIdentity): boolean {
+  return info.dev >= 0n && info.ino > 0n;
+}
+
+function identityOf(info: FileIdentity): FileIdentity {
+  assertStableIdentity(info);
+  return { dev: info.dev, ino: info.ino };
+}
+
+async function assertUnchanged(target: string, expected: FileIdentity): Promise<void> {
+  let current: BigIntStats;
+  try {
+    current = await lstat(target, { bigint: true });
+  } catch {
+    throw new PolicyError("PATH_CHANGED", "The path changed during authorization.");
+  }
+  assertSafeObject(current);
+  if (!sameFileIdentity(expected, current)) {
+    throw new PolicyError("PATH_CHANGED", "The path changed during authorization.");
   }
 }
 
@@ -456,9 +681,19 @@ function logicalPath(value: string): string {
   return normalized ? normalized.split(path.sep).join("/") : ".";
 }
 
-function sameFile(left: { dev: number; ino: number }, right: { dev: number; ino: number }): boolean {
-  if (left.ino === 0 || right.ino === 0) return true;
-  return left.dev === right.dev && left.ino === right.ino;
+export function sameFileIdentity(left: FileIdentityInput, right: FileIdentityInput): boolean {
+  const leftDev = exactBigInt(left.dev);
+  const leftIno = exactBigInt(left.ino);
+  const rightDev = exactBigInt(right.dev);
+  const rightIno = exactBigInt(right.ino);
+  if (leftDev === null || leftIno === null || rightDev === null || rightIno === null
+    || leftDev < 0n || rightDev < 0n || leftIno <= 0n || rightIno <= 0n) return false;
+  return leftDev === rightDev && leftIno === rightIno;
+}
+
+function exactBigInt(value: number | bigint): bigint | null {
+  if (typeof value === "bigint") return value;
+  return Number.isSafeInteger(value) ? BigInt(value) : null;
 }
 
 function decodeUtf8(buffer: Buffer, truncated: boolean): string {

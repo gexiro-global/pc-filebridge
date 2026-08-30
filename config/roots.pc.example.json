@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "id": "pc-c",
+      "label": "Main PC C drive",
+      "path": "C:\\",
+      "read": true,
+      "create": true
+    },
+    {
+      "id": "pc-d",
+      "label": "Main PC D drive",
+      "path": "D:\\",
+      "read": true,
+      "create": true
+    }
+  ],
+  "limits": {
+    "maxReadBytes": 262144,
+    "maxWriteBytes": 1048576,
+    "maxDirectoryEntries": 250,
+    "maxSearchResults": 100,
+    "maxSearchEntries": 5000
+  }
+}

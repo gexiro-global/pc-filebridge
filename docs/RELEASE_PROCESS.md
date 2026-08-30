@@ -7,7 +7,7 @@ PC FileBridge releases are built from the canonical public repository, never fro
 1. Start from a clean, reviewed commit on the protected `main` branch.
 2. Set one semantic version consistently in `package.json`, `package-lock.json`, `.codex-plugin/plugin.json`, and the MCP smoke client.
 3. Update `CHANGELOG.md` and complete [Public launch readiness](PUBLIC_LAUNCH_READINESS.md).
-4. Confirm Linux CI, mandatory Windows security checks, CodeQL, dependency review, tracked-file secret scan, production dependency audit, and MCP smoke are green.
+4. Confirm Ubuntu and Windows CI on Node.js 22 and 24, the real Windows 8.3 fixture, CodeQL, dependency review, tracked-file secret scan, production dependency and license audits, package-content review, clean-room receiver simulation, and MCP smoke are green.
 5. Confirm the source contains no credentials, private endpoints, operator identifiers, private configuration, logs, or real user files.
 
 ## Automated workflow

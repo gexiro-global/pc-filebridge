@@ -13,29 +13,32 @@ Use [GitHub private vulnerability reporting](https://github.com/gexiro-global/pc
 - Every operation is scoped to a configured root ID and relative path.
 - Absolute, UNC, traversal, alternate-data-stream, reserved-name, symlink, junction, and reparse-point paths are rejected.
 - Canonicalized targets must remain inside their root.
+- Every existing component is mapped to its filesystem-stored name by exact BigInt file identity; alternate spellings are rejected and stored names are checked again against the sensitive-name policy.
+- Zero, unavailable, changed, or multiply matched identity fails closed. Multiply linked regular files are rejected.
 - File creation uses `open(..., "wx")`; directory creation is non-recursive and refuses existing targets.
 - The tool catalog contains no overwrite, append, patch, rename, move, link, delete, remove, or unlink capability.
 - Reads, listings, searches, and writes have server-side bounds.
 - Reads accept UTF-8 only and redact common credential patterns.
 - Sensitive system and credential names, including `.ppk`, Java keystores, and SSH private-key variants, are hidden from listings/search and blocked directly.
 - A complete filesystem root requires the exact `FILEBRIDGE_ALLOW_DRIVE_ROOT=I_ACCEPT_FULL_DRIVE_ACCESS_RISK` opt-in.
+- PC, laptop, and infrastructure runtimes use distinct tunnel identities. Launchers validate the exact tunnel name, role-specific root IDs and paths, and local operator gate before connection; one tunnel identifier must have only one active poller.
 - The server executes no shell commands and initiates no network connections.
 
 ## Trust boundary
 
-Files and filenames are untrusted input and may contain prompt injection. MCP clients must treat returned content as data, never as instructions. The stdio process relies on the operating-system identity that launches it. A remote connection must use an authenticated private transport such as OpenAI Secure MCP Tunnel.
+Files and filenames are untrusted input and may contain prompt injection. MCP clients must treat returned content as data, never as instructions. The stdio process relies on the operating-system identity that launches it. A remote connection must use an authenticated private transport such as OpenAI Secure MCP Tunnel. The supplied container publishes no inbound port and reads its dedicated runtime credential from a read-only file mount.
 
 ## Residual risk
 
 - An allowed folder may still contain ordinary private documents not recognized by filename filters.
 - Pattern redaction cannot detect every custom secret format.
-- A malicious same-user local process may attempt path races. Pre/post-open checks reduce risk, but portable Node.js does not provide Windows `openat2` semantics.
+- A malicious same-user or more-privileged local process may attempt path races. Root, parent, component, and open-handle identity checks reduce risk, but portable Node.js does not provide Windows `openat2` semantics and cannot eliminate every race.
 - Full-drive mode expands exposure even while deny rules remain active.
 - A failed physical write may leave a partial new file. The server intentionally does not delete it.
 - Data returned to an MCP client follows that client's model-provider and workspace policies.
 
 ## Operator responsibilities
 
-Use narrow roots, run the process as a non-administrator, protect tunnel credentials, keep configuration and credential files out of Git, review client tool permissions, patch dependencies, and revoke the tunnel key after suspected exposure.
+Use narrow roots, run the process as a non-administrator, protect tunnel credentials, keep configuration and credential files out of Git and image layers, review client tool permissions, patch dependencies, and revoke the tunnel key after suspected exposure. On VPS deployments, restrict the secret volume, keep health/admin endpoints unexposed, and preserve encrypted recovery material separately from the host.
 
 Security controls reduce known risk; they are not a guarantee that every deployment is safe.

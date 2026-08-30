@@ -1,6 +1,6 @@
 {
   "name": "pc-filebridge",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Create-only filesystem MCP server for ChatGPT, Codex, and other MCP clients.",
   "license": "Apache-2.0",
   "repository": {
@@ -23,10 +23,17 @@
     ".codex-plugin/",
     ".mcp.json",
     "config/",
+    "deploy/",
     "mcp/",
     "scripts/",
     "skills/",
-    "docs/",
+    "docs/IMAGE_SECURITY.md",
+    "docs/INCIDENT_RESPONSE.md",
+    "docs/PUBLIC_LAUNCH_READINESS.md",
+    "docs/RELEASE_PROCESS.md",
+    "docs/RELEASE_VERIFICATION.md",
+    "docs/TUNNEL_ROLES.md",
+    "docs/VPS_DEPLOYMENT.md",
     "ARCHITECTURE.md",
     "CHANGELOG.md",
     "CODE_OF_CONDUCT.md",
@@ -44,22 +51,36 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build": "esbuild src/server.ts --bundle --external:zod --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run test/filePolicy.test.ts",
+    "test:windows-8dot3": "vitest run test/windows-8dot3.integration.windows.test.ts",
     "test:mcp": "node scripts/mcp-smoke.mjs",
+    "test:versions": "node scripts/version-consistency.mjs",
+    "test:tunnel-roles": "node scripts/tunnel-role-contract.mjs",
+    "test:volume-discovery:windows": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/volume-discovery.windows.test.ps1",
+    "test:volume-discovery:pwsh": "pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/volume-discovery.windows.test.ps1",
+    "test:runtime-rollback:windows": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/runtime-rollback.windows.test.ps1",
+    "test:crash-window:windows": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/crash-window.windows.test.ps1",
+    "test:docker-role-config": "node scripts/docker-role-config.test.mjs",
+    "test:healthcheck": "node scripts/healthcheck-smoke.mjs",
+    "test:image-gate": "node scripts/image-vulnerability-gate.test.mjs",
     "check:secrets": "node scripts/secret-scan.mjs",
-    "verify": "npm run check:secrets && npm run typecheck && npm test && npm run build && npm run test:mcp",
+    "check:licenses": "node scripts/license-check.mjs",
+    "check:package": "node scripts/package-contents-check.mjs",
+    "check:container": "node scripts/container-smoke.mjs",
+    "check:image-vulnerabilities": "node scripts/image-vulnerability-gate.mjs",
+    "verify": "npm run check:secrets && npm run typecheck && npm test && npm run build && npm run test:versions && npm run test:mcp && npm run test:tunnel-roles && npm run test:docker-role-config && npm run test:healthcheck && npm run test:image-gate && npm run check:licenses && npm run check:package",
     "check": "npm run verify"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "zod": "4.4.3"
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@types/node": "26.1.1",
-    "esbuild": "0.28.1",
+    "@types/node": "26.4.0",
+    "esbuild": "0.28.2",
     "typescript": "7.0.2",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }
