@@ -44,6 +44,7 @@ try {
   Write-Json -Path $statePath -Value ([ordered]@{ running = $false })
   $testTunnelId = 'tunnel_' + 'test_runtime_1234'
   [IO.File]::WriteAllText((Join-Path $privateRoot 'pc-local.tunnel-id'), ($testTunnelId + [Environment]::NewLine), $encoding)
+  [IO.File]::WriteAllText((Join-Path $privateRoot 'pc-local.gate'), ("ARMED:pc-local" + [Environment]::NewLine), $encoding)
 
   $tunnelClient = Join-Path $tempRoot 'mock-tunnel-client.ps1'
   [IO.File]::WriteAllText($tunnelClient, @'

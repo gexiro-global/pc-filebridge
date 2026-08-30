@@ -30,6 +30,7 @@ try {
     $env:PCFB_TEST_STATE = $state
     Write-Json $state ([ordered]@{ running = $false })
     [IO.File]::WriteAllText((Join-Path $private 'pc-local.tunnel-id'), (('tun' + 'nel_crash_test_1234') + [Environment]::NewLine), $encoding)
+    [IO.File]::WriteAllText((Join-Path $private 'pc-local.gate'), ("ARMED:pc-local" + [Environment]::NewLine), $encoding)
 
     $client = Join-Path $case 'client.ps1'
     [IO.File]::WriteAllText($client, @'
@@ -72,6 +73,35 @@ param([string]$Role,[string]$TunnelId,[string]$ConfigPath,[switch]$EnableFullDri
     if (@($active.roots.id) -notcontains 'pc-f') { throw "CANDIDATE_NOT_RECOVERED_$point" }
   }
 
+  $gateCase = Join-Path $root 'gate-lock'
+  $gateLocal = Join-Path $gateCase 'localappdata'
+  $gatePrivate = Join-Path $gateLocal 'PCFileBridge\private'
+  [IO.Directory]::CreateDirectory($gatePrivate) | Out-Null
+  $env:LOCALAPPDATA = $gateLocal
+  $gateState = Join-Path $gateCase 'state.json'
+  $env:PCFB_TEST_STATE = $gateState
+  Write-Json $gateState ([ordered]@{ running = $true })
+  [IO.File]::WriteAllText((Join-Path $gatePrivate 'pc-local.gate'), ("LOCKED:pc-local" + [Environment]::NewLine), $encoding)
+  $gateClient = Join-Path $gateCase 'client.ps1'
+  [IO.File]::WriteAllText($gateClient, @'
+$state = Get-Content -Raw -LiteralPath $env:PCFB_TEST_STATE | ConvertFrom-Json
+if ($args[0] -ceq 'runtimes' -and $args[1] -ceq 'status') {
+  [ordered]@{ process_running=[bool]$state.running; healthy=[bool]$state.running; ready=[bool]$state.running } | ConvertTo-Json -Compress
+  exit 0
+}
+if ($args[0] -ceq 'runtimes' -and $args[1] -ceq 'stop') {
+  [IO.File]::WriteAllText($env:PCFB_TEST_STATE, '{"running":false}', [Text.Encoding]::ASCII)
+  '{}'
+  exit 0
+}
+throw 'MOCK_ARGUMENT'
+'@, $encoding)
+  $gateResult = & (Join-Path $PSScriptRoot 'Start-PCFileBridgeVolumeMonitor.ps1') -Role pc-local -Once -TunnelClientPath $gateClient -StableSnapshots 1 -SkipMcpProbe
+  $gateFinalState = Get-Content -Raw -LiteralPath $gateState | ConvertFrom-Json
+  if ([bool]$gateFinalState.running -or [bool]$gateResult.runtime_ready -or [string]$gateResult.runtime_action -cne 'gate_locked_stopped') {
+    throw 'LOCKED_GATE_DID_NOT_STOP_RUNTIME'
+  }
+
   $env:LOCALAPPDATA = Join-Path $root 'singleton-local'
   $singletonPrivate = Join-Path $env:LOCALAPPDATA 'PCFileBridge\private'
   [IO.Directory]::CreateDirectory($singletonPrivate) | Out-Null
@@ -103,7 +133,7 @@ param([string]$Role,[string]$TunnelId,[string]$ConfigPath,[switch]$EnableFullDri
     Stop-Job -Job $job -ErrorAction SilentlyContinue
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
   }
-  Write-Output 'CRASH_WINDOW_WINDOWS_TEST_PASS points=6 singleton=pass recovery=pass'
+  Write-Output 'CRASH_WINDOW_WINDOWS_TEST_PASS points=6 singleton=pass recovery=pass gate_lock=pass'
 } finally {
   $env:LOCALAPPDATA = $previousLocalAppData
   $env:PCFB_TEST_STATE = $previousState

@@ -27,6 +27,7 @@ $contract = Get-Content -Raw -LiteralPath (Join-Path $pluginRoot 'config\tunnel-
 $roleContract = @($contract.roles | Where-Object { $_.id -ceq $Role })
 if ($roleContract.Count -ne 1) { throw 'ROLE_CONTRACT_INVALID' }
 $alias = [string]$roleContract[0].alias
+$gateRequired = [bool]$roleContract[0].gateRequired
 
 $privateRoot = Join-Path $env:LOCALAPPDATA 'PCFileBridge\private'
 [IO.Directory]::CreateDirectory($privateRoot) | Out-Null
@@ -85,6 +86,17 @@ function Get-RuntimeStatus {
   try { return (($raw -join [Environment]::NewLine) | ConvertFrom-Json) } catch { return $null }
 }
 
+function Test-ConnectorGateArmed {
+  if (-not $gateRequired) { return $true }
+  $gatePath = Join-Path $privateRoot "$Role.gate"
+  if (-not (Test-Path -LiteralPath $gatePath -PathType Leaf)) { return $false }
+  try {
+    return [IO.File]::ReadAllText($gatePath, [Text.Encoding]::UTF8).Trim() -ceq "ARMED:$Role"
+  } catch {
+    return $false
+  }
+}
+
 function Invoke-LocalMcpProbe([string]$Path, [string[]]$ExpectedRoots) {
   if ($SkipMcpProbe) { return }
   $previousConfig = $env:FILEBRIDGE_CONFIG
@@ -125,6 +137,24 @@ try {
 
   while ($true) {
     try {
+      if (-not $SkipConnect -and -not (Test-ConnectorGateArmed)) {
+        $lockedStatus = Get-RuntimeStatus
+        $lockedRuntimeStopped = $false
+        if ($null -ne $lockedStatus -and [bool]$lockedStatus.process_running) {
+          & $tunnelClient runtimes stop $alias --json | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'TUNNEL_STOP_FAILED' }
+          $lockedRuntimeStopped = $true
+        }
+        [pscustomobject]@{
+          role = $Role
+          runtime_action = $(if ($lockedRuntimeStopped) { 'gate_locked_stopped' } else { 'gate_locked' })
+          runtime_ready = $false
+        }
+        if ($Once) { break }
+        Start-Sleep -Seconds $PollSeconds
+        continue
+      }
+
       $updateArgs = @{ Role = $Role; OutputPath = $candidateConfigPath }
       if (-not [string]::IsNullOrWhiteSpace($InventoryPath)) { $updateArgs.InventoryPath = $InventoryPath }
       $update = & (Join-Path $PSScriptRoot 'Update-PCFileBridgeVolumeConfig.ps1') @updateArgs
