@@ -30,8 +30,25 @@ function Normalize-Identifier([object]$Value) {
 
 function Set-PrivateFileAcl([string]$Path) {
   $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-  & icacls.exe $Path /inheritance:r /grant:r ('*' + $current.User.Value + ':(F)') '*S-1-5-18:(F)' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'PRIVATE_FILE_ACL_FAILED' }
+  $fileInfo = New-Object IO.FileInfo($Path)
+  $acl = New-Object Security.AccessControl.FileSecurity
+  $acl.SetAccessRuleProtection($true, $false)
+  foreach ($sidValue in @($current.User.Value, 'S-1-5-18')) {
+    $sid = New-Object Security.Principal.SecurityIdentifier($sidValue)
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+      $sid,
+      [Security.AccessControl.FileSystemRights]::FullControl,
+      [Security.AccessControl.InheritanceFlags]::None,
+      [Security.AccessControl.PropagationFlags]::None,
+      [Security.AccessControl.AccessControlType]::Allow
+    )
+    [void]$acl.AddAccessRule($rule)
+  }
+  if ($PSVersionTable.PSEdition -ceq 'Core') {
+    [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $acl)
+  } else {
+    $fileInfo.SetAccessControl($acl)
+  }
 }
 
 function Test-PrivateFileAcl([string]$Path) {

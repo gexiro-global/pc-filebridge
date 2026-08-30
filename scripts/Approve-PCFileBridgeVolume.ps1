@@ -42,8 +42,25 @@ $temp = Join-Path $directory ('.pcfb-approval-' + [Guid]::NewGuid().ToString('N'
 try {
   [IO.File]::WriteAllText($temp, (($value | ConvertTo-Json -Depth 8) + [Environment]::NewLine), (New-Object Text.UTF8Encoding($false)))
   $current = [Security.Principal.WindowsIdentity]::GetCurrent()
-  & icacls.exe $temp /inheritance:r /grant:r ('*' + $current.User.Value + ':(F)') '*S-1-5-18:(F)' | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'APPROVAL_REGISTRY_ACL_FAILED' }
+  $fileInfo = New-Object IO.FileInfo($temp)
+  $acl = New-Object Security.AccessControl.FileSecurity
+  $acl.SetAccessRuleProtection($true, $false)
+  foreach ($sidValue in @($current.User.Value, 'S-1-5-18')) {
+    $sid = New-Object Security.Principal.SecurityIdentifier($sidValue)
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+      $sid,
+      [Security.AccessControl.FileSystemRights]::FullControl,
+      [Security.AccessControl.InheritanceFlags]::None,
+      [Security.AccessControl.PropagationFlags]::None,
+      [Security.AccessControl.AccessControlType]::Allow
+    )
+    [void]$acl.AddAccessRule($rule)
+  }
+  if ($PSVersionTable.PSEdition -ceq 'Core') {
+    [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $acl)
+  } else {
+    $fileInfo.SetAccessControl($acl)
+  }
   Move-Item -LiteralPath $temp -Destination $fullPath -Force
 } finally {
   if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
