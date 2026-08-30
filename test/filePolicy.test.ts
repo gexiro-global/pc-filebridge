@@ -1,8 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { FileBridgePolicy, type FileBridgeConfig, PolicyError } from "../src/filePolicy.js";
+import { FileBridgePolicy, type FileBridgeConfig, PolicyError, sameFileIdentity } from "../src/filePolicy.js";
 
 const cleanup: string[] = [];
 
@@ -11,7 +10,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const base = await mkdtemp(path.join(tmpdir(), "pc-filebridge-test-"));
+  const base = await mkdtemp(path.join(process.cwd(), ".pc-filebridge-test-"));
   cleanup.push(base);
   const root = path.join(base, "allowed");
   await mkdir(root);
@@ -104,6 +103,41 @@ describe("path containment", () => {
   ])("blocks Windows alternate streams and reserved path components: %s", async (unsafe) => {
     const { policy } = await fixture();
     await expect(policy.statPath("test", unsafe)).rejects.toMatchObject({ code: "INVALID_PATH_COMPONENT" });
+  });
+
+  test.each([
+    "\\\\?\\C:\\Windows\\win.ini",
+    "\\\\.\\PhysicalDrive0",
+    "\\rooted",
+    "/rooted",
+    "C:drive-relative.txt",
+    "folder/child\\mixed.txt",
+    "folder//double.txt",
+    "folder/./dot.txt",
+  ])("fails closed for an ambiguous Windows path representation: %s", async (unsafe) => {
+    const { policy } = await fixture();
+    await expect(policy.statPath("test", unsafe)).rejects.toBeInstanceOf(PolicyError);
+  });
+
+  test("fails closed for zero, unsafe, or ambiguous file identity", async () => {
+    expect(sameFileIdentity({ dev: 1, ino: 0 }, { dev: 1, ino: 0 })).toBe(false);
+    expect(sameFileIdentity({ dev: 1, ino: Number.MAX_SAFE_INTEGER + 1 }, { dev: 1, ino: Number.MAX_SAFE_INTEGER + 1 })).toBe(false);
+    expect(sameFileIdentity({ dev: 1n, ino: 2n }, { dev: 1n, ino: 2n })).toBe(true);
+
+    const { root, policy } = await fixture();
+    await writeFile(path.join(root, "hardlink-source.txt"), "fixture", "utf8");
+    await link(path.join(root, "hardlink-source.txt"), path.join(root, "hardlink-peer.txt"));
+    await expect(policy.statPath("test", "hardlink-source.txt")).rejects.toMatchObject({
+      code: "PATH_IDENTITY_AMBIGUOUS",
+    });
+  });
+
+  test("does not silently normalize a Unicode spelling variant", async () => {
+    const { root, policy } = await fixture();
+    const stored = "caf\u00e9.txt";
+    const alternate = "cafe\u0301.txt";
+    await writeFile(path.join(root, stored), "fixture", "utf8");
+    await expect(policy.statPath("test", alternate)).rejects.toBeInstanceOf(PolicyError);
   });
 
   test("requires an explicit exact opt-in for a complete drive root", async () => {

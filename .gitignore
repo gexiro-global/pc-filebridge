@@ -1,4 +1,7 @@
 node_modules/
+.pc-filebridge-test-*/
+.pc-filebridge-8dot3-*/
+.pc-filebridge-mcp-smoke-*/
 coverage/
 *.log
 private/

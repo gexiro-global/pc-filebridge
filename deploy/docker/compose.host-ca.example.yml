@@ -1,0 +1,14 @@
+services:
+  filebridge:
+    environment:
+      SSL_CERT_FILE: /run/pc-filebridge-trust/ca-certificates.crt
+      NODE_EXTRA_CA_CERTS: /run/pc-filebridge-trust/ca-certificates.crt
+    volumes:
+      - type: bind
+        source: /etc/ssl/certs/ca-certificates.crt
+        target: /run/pc-filebridge-trust/ca-certificates.crt
+        read_only: true
+
+# Optional Linux overlay for hosts that require a host-managed CA bundle.
+# Keep certificate verification enabled. Never set NODE_TLS_REJECT_UNAUTHORIZED=0
+# or use insecure tunnel flags.

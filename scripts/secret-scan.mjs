@@ -18,8 +18,8 @@ const blockedContent = [
   ["private key block", new RegExp("-----BEGIN " + "(?:RSA |OPENSSH |EC |DSA |ENCRYPTED )?PRIVATE KEY-----", "g")],
   ["real tunnel id", /\btunnel_[A-Za-z0-9_-]{8,}\b/g],
   ["private ChatGPT app id", /\basdk_app_[A-Za-z0-9_-]+\b/g],
-  ["local Windows account", new RegExp("Hacking" + "_" + "Base", "gi")],
-  ["private Gitea host", /git\.affihub\.site/gi],
+  ["local Windows profile", /\b[A-Za-z]:\\Users\\[^\\\r\n]+/g],
+  ["private forge URL", /https?:\/\/(?:git|gitea)\.[^\s/]+/gi],
 ];
 
 const findings = [];

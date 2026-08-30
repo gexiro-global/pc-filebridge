@@ -1,7 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,9 +14,9 @@ const expectedTools = [
   "stat_path",
 ];
 
-const client = new Client({ name: "pc-filebridge-smoke", version: "0.1.1" });
+const client = new Client({ name: "pc-filebridge-smoke", version: "0.2.1" });
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const fixtureDirectory = await mkdtemp(path.join(os.tmpdir(), "pc-filebridge-mcp-smoke-"));
+const fixtureDirectory = await mkdtemp(path.join(pluginRoot, ".pc-filebridge-mcp-smoke-"));
 const configPath = path.join(fixtureDirectory, "roots.json");
 await writeFile(configPath, JSON.stringify({
   version: 1,
@@ -33,7 +32,7 @@ await writeFile(configPath, JSON.stringify({
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [path.join(pluginRoot, "mcp", "server.mjs")],
-  cwd: os.tmpdir(),
+  cwd: pluginRoot,
   env: { FILEBRIDGE_CONFIG: configPath },
 });
 

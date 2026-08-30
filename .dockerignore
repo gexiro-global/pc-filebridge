@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+release
+test
+config/roots.local.json
+*.tgz
+*.zip
+*.bundle

@@ -15,10 +15,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify-linux:
-    name: Build, test, and security checks
+  verify:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: "22"
+            label: Ubuntu Node 22
+          - os: ubuntu-latest
+            node: "24"
+            label: Ubuntu Node 24
+          - os: windows-latest
+            node: "22"
+            label: Windows Node 22
+          - os: windows-latest
+            node: "24"
+            label: Windows Node 24
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify cross-platform policy and MCP invariants
+        run: npm run verify
+      - name: Verify a real Windows 8.3 fixture without skipping
+        if: runner.os == 'Windows'
+        run: npm run test:windows-8dot3
+      - name: Verify fixed-volume discovery fails closed on Windows
+        if: runner.os == 'Windows'
+        run: npm run test:volume-discovery:windows
+      - name: Verify discovery and ACL helpers under PowerShell 7
+        if: runner.os == 'Windows'
+        run: npm run test:volume-discovery:pwsh
+      - name: Verify failed topology changes roll back to the last-known-good runtime
+        if: runner.os == 'Windows'
+        run: npm run test:runtime-rollback:windows
+      - name: Verify crash-window recovery and monitor singleton
+        if: runner.os == 'Windows'
+        run: npm run test:crash-window:windows
+      - name: Generate and validate CycloneDX SBOM
+        shell: pwsh
+        run: >-
+          npm sbom --sbom-format cyclonedx |
+          Out-File -LiteralPath pc-filebridge-sbom.cdx.json -Encoding utf8;
+          node -e "JSON.parse(require('node:fs').readFileSync('pc-filebridge-sbom.cdx.json','utf8'))"
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  container-runtime:
+    name: Hardened VPS container
+    needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,21 +86,19 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      - name: Verify
-        run: npm run check
-      - name: Validate package contents
-        run: npm pack --dry-run --ignore-scripts
-      - name: Generate and validate CycloneDX SBOM
-        shell: bash
-        run: |
-          npm sbom --sbom-format cyclonedx > pc-filebridge-sbom.cdx.json
-          node -e "JSON.parse(require('node:fs').readFileSync('pc-filebridge-sbom.cdx.json','utf8'))"
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Build digest-pinned runtime image
+        run: docker build --pull -f deploy/docker/Dockerfile -t pc-filebridge:0.2.1 .
+      - name: Verify container policy, tunnel version, and fail-closed startup
+        run: npm run check:container
+      - name: Scan complete runtime image
+        run: sh scripts/run-image-vulnerability-gate.sh
+      - name: Validate Compose model
+        run: docker compose -f deploy/docker/compose.example.yml -f deploy/docker/compose.host-ca.example.yml config --quiet
 
-  verify-windows:
-    name: Windows security checks
-    runs-on: windows-latest
+  receiver-simulation:
+    name: Clean-room receiver simulation
+    needs: verify
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -55,5 +110,25 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      - name: Verify Windows path and MCP invariants
-        run: npm run check
+      - name: Build receiver artifacts with basename-only checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify
+          version="$(node --input-type=commonjs -p "require('./package.json').version")"
+          tag="v${version}"
+          rm -rf release-ci
+          mkdir release-ci
+          runtime_name="pc-filebridge-${tag}-runtime-npm.tgz"
+          source_name="pc-filebridge-${tag}-source.tar.gz"
+          sbom_name="pc-filebridge-${tag}-sbom.cdx.json"
+          package_file="$(npm pack --ignore-scripts --silent)"
+          mv -- "${package_file}" "release-ci/${runtime_name}"
+          git archive --format=tar.gz --prefix="pc-filebridge-${tag}-source/" --output="release-ci/${source_name}" HEAD
+          npm sbom --sbom-format cyclonedx > "release-ci/${sbom_name}"
+          (
+            cd release-ci
+            sha256sum "${runtime_name}" "${source_name}" "${sbom_name}" > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          node scripts/verify-release-artifact.mjs --release-dir release-ci --tag "${tag}"
