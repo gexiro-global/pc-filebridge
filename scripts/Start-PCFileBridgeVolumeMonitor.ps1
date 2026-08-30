@@ -19,6 +19,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$Role = $Role.ToLowerInvariant()
 
 $pluginRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..') -ErrorAction Stop).Path
 if ([string]::IsNullOrWhiteSpace($ConnectScriptPath)) { $ConnectScriptPath = Join-Path $PSScriptRoot 'Connect-PCFileBridgeRoleTunnel.ps1' }

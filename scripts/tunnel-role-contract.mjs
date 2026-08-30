@@ -13,6 +13,15 @@ const roleTask = await readFile(
   path.join(root, "scripts", "Connect-PCFileBridgeRoleTunnel-Task.ps1"),
   "utf8",
 );
+const volumeMonitor = await readFile(
+  path.join(root, "scripts", "Start-PCFileBridgeVolumeMonitor.ps1"),
+  "utf8",
+);
+for (const roleEntryPoint of [autostartInstallers[1], roleTask, volumeMonitor]) {
+  if (!roleEntryPoint.includes("$Role = $Role.ToLowerInvariant()")) {
+    throw new Error("Role entry points must normalize case before case-sensitive contract checks.");
+  }
+}
 for (const windowsPowerShellScript of [...autostartInstallers, roleTask]) {
   if (windowsPowerShellScript.includes("IsPathFullyQualified")) {
     throw new Error("Windows PowerShell 5.1 scripts must not call IsPathFullyQualified.");

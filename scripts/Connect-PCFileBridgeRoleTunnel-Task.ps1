@@ -9,6 +9,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$Role = $Role.ToLowerInvariant()
 
 $previousLocalAppData = $env:LOCALAPPDATA
 try {

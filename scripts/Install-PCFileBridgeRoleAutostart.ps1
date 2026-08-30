@@ -10,6 +10,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$Role = $Role.ToLowerInvariant()
 
 if ([string]::IsNullOrWhiteSpace($TaskName)) {
   $TaskName = if ($Role -ceq 'pc-local') { 'PC FileBridge PC Local' } else { 'PC FileBridge Laptop Local' }
