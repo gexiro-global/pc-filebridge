@@ -74,6 +74,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /src/mcp/server.mjs /app/mcp/server.mjs
+COPY --from=build --chown=10001:10001 /src/node_modules/zod /app/node_modules/zod
 COPY --chown=10001:10001 config/roots.infrastructure.example.json /app/config/roots.infrastructure.json
 COPY deploy/docker/entrypoint.sh /usr/local/bin/pc-filebridge-entrypoint
 COPY deploy/docker/healthcheck.mjs /usr/local/lib/pc-filebridge/healthcheck.mjs
