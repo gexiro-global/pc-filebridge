@@ -38,9 +38,10 @@ if (-not [string]::IsNullOrWhiteSpace($RuntimeLocalAppData)) {
 }
 $arguments = $argumentParts -join ' '
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($taskScript))
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $account
+$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $account
+$watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $principal = New-ScheduledTaskPrincipal -UserId $account -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -Compatibility Win8 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -DontStopOnIdleEnd -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1)
 
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Starts the $Role PC FileBridge auto-volume monitor after user logon." | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($logonTrigger, $watchdogTrigger) -Principal $principal -Settings $settings -Description "Starts the $Role PC FileBridge auto-volume monitor after user logon and retries stopped runtimes every five minutes." | Out-Null
 Write-Output "ROLE_AUTOSTART_INSTALLED task=$TaskName role=$Role overwrite=false"
