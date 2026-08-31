@@ -90,6 +90,7 @@ jobs:
 
           package_file="$(npm pack --ignore-scripts --silent)"
           mv -- "${package_file}" "release/${runtime_name}"
+          release_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
           git archive \
             --format=tar.gz \
             --prefix="pc-filebridge-${RELEASE_TAG}-source/" \
