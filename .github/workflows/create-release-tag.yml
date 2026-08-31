@@ -1,0 +1,57 @@
+name: Create release tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable semantic release tag, for example v0.2.2
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: create-release-tag
+  cancel-in-progress: false
+
+jobs:
+  create:
+    name: Verify main and create immutable tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-release
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify, push tag, and dispatch verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          package_version="$(node --input-type=commonjs -p "require('./package.json').version")"
+          [[ "${RELEASE_TAG}" == "v${package_version}" ]]
+
+          release_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags --force origin main:refs/remotes/origin/main
+          [[ "${release_sha}" == "$(git rev-parse refs/remotes/origin/main)" ]]
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${RELEASE_TAG} already exists." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG}" "${release_sha}" -m "PC FileBridge ${RELEASE_TAG}"
+          git push origin "refs/tags/${RELEASE_TAG}"
+          gh workflow run release.yml --ref main -f "tag=${RELEASE_TAG}"

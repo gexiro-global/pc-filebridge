@@ -47,6 +47,12 @@ for (const autostartInstaller of autostartInstallers) {
   if (/ExecutionTimeLimit\s+\(New-TimeSpan/i.test(autostartInstaller)) {
     throw new Error("Autostart installer must not impose a finite execution time limit.");
   }
+  if (!autostartInstaller.includes("-RepetitionInterval (New-TimeSpan -Minutes 5)")) {
+    throw new Error("Autostart installer must include the five-minute recovery trigger.");
+  }
+  if (!autostartInstaller.includes("-Trigger @($logonTrigger, $watchdogTrigger)")) {
+    throw new Error("Autostart installer must register both logon and recovery triggers.");
+  }
 }
 const volumePolicy = (rootIdPrefix) => ({
   enabled: true,

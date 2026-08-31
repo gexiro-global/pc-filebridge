@@ -5,6 +5,7 @@
 - Fixed Windows autostart durability: the tunnel task now has no finite execution limit and is not stopped by battery or idle transitions.
 - Added a Windows PowerShell 5.1-compatible role-bound auto-volume task installer with optional isolated runtime state.
 - Canonicalized role casing before task registration and case-sensitive contract lookup.
+- Added a five-minute recovery trigger so externally interrupted runtimes restart without another logon.
 - Added a regression contract for the required long-running Scheduled Task settings.
 
 ## 0.2.1 - 2026-08-30

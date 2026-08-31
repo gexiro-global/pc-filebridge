@@ -120,7 +120,7 @@ For role-bound automatic volume discovery, install the dedicated per-user task:
 .\scripts\Install-PCFileBridgeRoleAutostart.ps1 -Role pc-local
 ```
 
-If the protected tunnel runtime intentionally uses a separate local application-data directory, pass its absolute path with `-RuntimeLocalAppData`. The task script runs a singleton monitor and does not contain a tunnel identifier or API key in its arguments. Both installers create long-running tasks with no finite execution limit and do not stop them on battery or idle transitions; they refuse to replace an existing task.
+If the protected tunnel runtime intentionally uses a separate local application-data directory, pass its absolute path with `-RuntimeLocalAppData`. The task script runs a singleton monitor and does not contain a tunnel identifier or API key in its arguments. Both installers create long-running tasks with no finite execution limit, do not stop them on battery or idle transitions, and add a five-minute recovery trigger for externally interrupted runtimes; they refuse to replace an existing task.
 
 ## Full-drive mode
 

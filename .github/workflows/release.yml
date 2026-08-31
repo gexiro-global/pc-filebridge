@@ -4,13 +4,22 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable semantic release tag, for example v0.2.2
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -23,6 +32,7 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -36,19 +46,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           package_version="$(node --input-type=commonjs -p "require('./package.json').version")"
           expected_tag="v${package_version}"
-          if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
-            echo "Release tag ${GITHUB_REF_NAME} does not match package version ${package_version}." >&2
+          if [[ "${RELEASE_TAG}" != "${expected_tag}" ]]; then
+            echo "Release tag ${RELEASE_TAG} does not match package version ${package_version}." >&2
             exit 1
           fi
-          if [[ "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" != "${GITHUB_SHA}" ]]; then
+          release_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${release_sha}" != "${GITHUB_SHA}" ]]; then
             echo "The release tag does not resolve to the workflow commit." >&2
             exit 1
           fi
           git fetch --no-tags --force origin main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
-            echo "Tagged commit ${GITHUB_SHA} is not on origin/main." >&2
+          if ! git merge-base --is-ancestor "${release_sha}" refs/remotes/origin/main; then
+            echo "Tagged commit ${release_sha} is not on origin/main." >&2
             exit 1
           fi
 
@@ -72,17 +84,18 @@ jobs:
           rm -rf release
           mkdir release
 
-          runtime_name="pc-filebridge-${GITHUB_REF_NAME}-runtime-npm.tgz"
-          source_name="pc-filebridge-${GITHUB_REF_NAME}-source.tar.gz"
-          sbom_name="pc-filebridge-${GITHUB_REF_NAME}-sbom.cdx.json"
+          runtime_name="pc-filebridge-${RELEASE_TAG}-runtime-npm.tgz"
+          source_name="pc-filebridge-${RELEASE_TAG}-source.tar.gz"
+          sbom_name="pc-filebridge-${RELEASE_TAG}-sbom.cdx.json"
 
           package_file="$(npm pack --ignore-scripts --silent)"
           mv -- "${package_file}" "release/${runtime_name}"
+          release_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
           git archive \
             --format=tar.gz \
-            --prefix="pc-filebridge-${GITHUB_REF_NAME}-source/" \
+            --prefix="pc-filebridge-${RELEASE_TAG}-source/" \
             --output="release/${source_name}" \
-            "${GITHUB_SHA}"
+            "${release_sha}"
           npm sbom --sbom-format cyclonedx > "release/${sbom_name}"
 
           (
@@ -95,12 +108,12 @@ jobs:
         run: >-
           node scripts/verify-release-artifact.mjs
           --release-dir release
-          --tag "${GITHUB_REF_NAME}"
+          --tag "${RELEASE_TAG}"
 
       - name: Preserve verified release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: pc-filebridge-release-${{ github.ref_name }}
+          name: pc-filebridge-release-${{ env.RELEASE_TAG }}
           path: release/
           if-no-files-found: error
           retention-days: 90
@@ -120,6 +133,7 @@ jobs:
       - name: Re-check release identity
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -127,16 +141,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           package_version="$(node --input-type=commonjs -p "require('./package.json').version")"
-          [[ "${GITHUB_REF_NAME}" == "v${package_version}" ]]
-          [[ "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" == "${GITHUB_SHA}" ]]
+          [[ "${RELEASE_TAG}" == "v${package_version}" ]]
+          release_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
           git fetch --no-tags --force origin main:refs/remotes/origin/main
-          git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main
+          git merge-base --is-ancestor "${release_sha}" refs/remotes/origin/main
 
       - name: Download verified release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: pc-filebridge-release-${{ github.ref_name }}
+          name: pc-filebridge-release-${{ env.RELEASE_TAG }}
           path: release
 
       - name: Re-verify downloaded checksums
@@ -152,9 +167,9 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            release/pc-filebridge-${{ github.ref_name }}-runtime-npm.tgz
-            release/pc-filebridge-${{ github.ref_name }}-source.tar.gz
-            release/pc-filebridge-${{ github.ref_name }}-sbom.cdx.json
+            release/pc-filebridge-${{ env.RELEASE_TAG }}-runtime-npm.tgz
+            release/pc-filebridge-${{ env.RELEASE_TAG }}-source.tar.gz
+            release/pc-filebridge-${{ env.RELEASE_TAG }}-sbom.cdx.json
             release/SHA256SUMS
 
       - name: Create GitHub release
@@ -163,11 +178,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "${GITHUB_REF_NAME}" \
-            "release/pc-filebridge-${GITHUB_REF_NAME}-runtime-npm.tgz" \
-            "release/pc-filebridge-${GITHUB_REF_NAME}-source.tar.gz" \
-            "release/pc-filebridge-${GITHUB_REF_NAME}-sbom.cdx.json" \
+          gh release create "${RELEASE_TAG}" \
+            "release/pc-filebridge-${RELEASE_TAG}-runtime-npm.tgz" \
+            "release/pc-filebridge-${RELEASE_TAG}-source.tar.gz" \
+            "release/pc-filebridge-${RELEASE_TAG}-sbom.cdx.json" \
             "release/SHA256SUMS" \
             --verify-tag \
             --generate-notes \
-            --title "PC FileBridge ${GITHUB_REF_NAME}"
+            --title "PC FileBridge ${RELEASE_TAG}"
