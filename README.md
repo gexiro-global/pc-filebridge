@@ -4,6 +4,8 @@
 [![CodeQL](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml)
 [![Release](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml)
 
+[Security and trust evidence](docs/SECURITY-TRUST.md) documents the project's policies and automated checks. No certification or badge level is claimed.
+
 PC FileBridge is a local Model Context Protocol (MCP) server that gives ChatGPT, Codex, and other MCP clients bounded access to operator-selected folders. It can read UTF-8 text and create new files or directories, but it cannot overwrite, append, rename, move, link, or delete.
 
 The create-only guarantee is enforced by the server. New files use operating-system exclusive create mode (`wx`), so an existing target returns `TARGET_EXISTS` and remains unchanged.
