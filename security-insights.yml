@@ -1,0 +1,64 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-09-04'
+  last-reviewed: '2026-09-04'
+  url: https://raw.githubusercontent.com/gexiro-global/pc-filebridge/main/security-insights.yml
+  comment: This single-repository file reports current practices and makes no certification claim.
+project:
+  name: PC FileBridge
+  homepage: https://github.com/gexiro-global/pc-filebridge
+  administrators:
+    - name: dzeusking-dev
+      affiliation: Gexiro Global Enterprises Ltd.
+      social: https://github.com/dzeusking-dev
+      primary: true
+  documentation:
+    quickstart-guide: https://github.com/gexiro-global/pc-filebridge#install-and-configure
+    detailed-guide: https://github.com/gexiro-global/pc-filebridge/blob/main/ARCHITECTURE.md
+    code-of-conduct: https://github.com/gexiro-global/pc-filebridge/blob/main/CODE_OF_CONDUCT.md
+    release-process: https://github.com/gexiro-global/pc-filebridge/blob/main/docs/RELEASE_PROCESS.md
+    support-policy: https://github.com/gexiro-global/pc-filebridge/blob/main/SUPPORT.md
+    signature-verification: https://github.com/gexiro-global/pc-filebridge/blob/main/docs/RELEASE_VERIFICATION.md
+  repositories:
+    - name: pc-filebridge
+      url: https://github.com/gexiro-global/pc-filebridge
+      comment: Canonical source and release repository.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    policy: https://github.com/gexiro-global/pc-filebridge/blob/main/SECURITY.md
+repository:
+  url: https://github.com/gexiro-global/pc-filebridge
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  no-third-party-packages: false
+  core-team:
+    - name: dzeusking-dev
+      affiliation: Gexiro Global Enterprises Ltd.
+      social: https://github.com/dzeusking-dev
+      primary: true
+  documentation:
+    contributing-guide: https://github.com/gexiro-global/pc-filebridge/blob/main/CONTRIBUTING.md
+    review-policy: https://github.com/gexiro-global/pc-filebridge/blob/main/GOVERNANCE.md
+    security-policy: https://github.com/gexiro-global/pc-filebridge/blob/main/SECURITY.md
+    governance: https://github.com/gexiro-global/pc-filebridge/blob/main/GOVERNANCE.md
+    dependency-management-policy: https://github.com/gexiro-global/pc-filebridge/blob/main/docs/SECURITY-TRUST.md
+  license:
+    url: https://github.com/gexiro-global/pc-filebridge/blob/main/LICENSE
+    expression: Apache-2.0
+  release:
+    changelog: https://github.com/gexiro-global/pc-filebridge/blob/main/CHANGELOG.md
+    automated-pipeline: true
+    distribution-points:
+      - uri: https://github.com/gexiro-global/pc-filebridge/releases
+        comment: Versioned GitHub release assets.
+    attestations:
+      - name: GitHub build provenance
+        predicate-uri: https://slsa.dev/provenance/v1
+        location: https://github.com/gexiro-global/pc-filebridge/attestations
+        comment: Verify the selected release asset against this repository and tag.
+  security:
+    assessments:
+      self:
+        comment: Maintainer self-assessment only; no independent audit is claimed.
