@@ -13788,7 +13788,7 @@ async function main() {
       }),
       annotations: readAnnotations
     },
-    async ({ root_id, relative_path, max_bytes, offset, encoding, expected_version }) => execute(() => policy.readTextPage(root_id, relative_path, offset, max_bytes, encoding, expected_version))
+    async ({ root_id, relative_path, max_bytes, offset, encoding, expected_version }) => execute(() => /\.(pdf|docx|xlsx|pptx|odt|ods|odp)$/i.test(relative_path) && offset === 0 && encoding === "auto" ? readDocument(policy, root_id, relative_path, 1, 0, Math.min(max_bytes ?? 32e3, 262144), expected_version) : policy.readTextPage(root_id, relative_path, offset, max_bytes, encoding, expected_version))
   );
   server.registerTool("read_file", {
     title: "Read any file as original bytes or an image",
