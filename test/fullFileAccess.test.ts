@@ -33,7 +33,7 @@ test("every byte of a multi-page binary file is accessible and hash-verifiable",
     chunks.push(bytes); version = r.file_version; offset = r.next_offset;
     if (r.eof) break;
   }
-  expect(Buffer.concat(chunks)).toEqual(original);
+  expect(Buffer.concat(chunks).equals(original)).toBe(true);
   expect(offset).toBe(700001);
 });
 test("a changed file cannot be silently mixed into a prior download", async () => {

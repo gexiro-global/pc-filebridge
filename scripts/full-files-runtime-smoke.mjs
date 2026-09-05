@@ -1,0 +1,33 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { zipSync, strToU8 } from 'fflate';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+const dir = path.resolve(process.env.SMOKE_DIR || '../pcbridge-live-witness');
+await mkdir(dir, {recursive:true});
+const raw=Buffer.alloc(700001); for(let i=0;i<raw.length;i++) raw[i]=i%256;
+await writeFile(path.join(dir,'arbitrary.dat'),raw);
+await writeFile(path.join(dir,'report.docx'),zipSync({'word/document.xml':strToU8('<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>Codex writes. Classic reviews. PCBRIDGE-20260905.</w:t></w:r></w:p></w:body></w:document>')}));
+await writeFile(path.join(dir,'pixel.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aAZsAAAAASUVORK5CYII=','base64'));
+await writeFile(path.join(dir,'utf16.txt'),Buffer.concat([Buffer.from([255,254]),Buffer.from('Zażółć gęślą jaźń.','utf16le')]));
+const config=path.join(dir,'roots.json');
+await writeFile(config,JSON.stringify({version:1,roots:[{id:'reports',label:'Report verification',path:dir,read:true,create:true}],limits:{}}));
+const client=new Client({name:'full-files-runtime-proof',version:'1'});
+const transport=new StdioClientTransport({command:process.execPath,args:[path.resolve(process.env.SMOKE_SERVER || 'mcp/server.mjs')],env:{...process.env,FILEBRIDGE_CONFIG:config},stderr:'pipe'});
+try {
+ await client.connect(transport);
+ const catalog=await client.listTools(); assert.equal(catalog.tools.length,10);
+ const call=async(name,args)=>{const r=await client.callTool({name,arguments:{root_id:'reports',...args}}); assert.ok(!r.isError,JSON.stringify(r)); return r;};
+ const data=r=>r.structuredContent || JSON.parse(r.content.find(c=>c.type==='text').text);
+ const chunks=[];let offset=0,version;
+ do {const r=data(await call('read_file',{relative_path:'arbitrary.dat',offset,max_bytes:131072,expected_version:version,render_image:false}));chunks.push(Buffer.from(r.data_base64,'base64'));offset=r.next_offset;version=r.file_version;if(r.eof)break;}while(true);
+ assert.ok(Buffer.concat(chunks).equals(raw));
+ for(const name of ['read_document','read_text_file'])assert.match(data(await call(name,{relative_path:'report.docx'})).text,/PCBRIDGE-20260905/);
+ assert.match(data(await call('read_text_file',{relative_path:'utf16.txt'})).text,/Zażółć/);
+ const img=await call('read_file',{relative_path:'pixel.png'});assert.ok(img.content.some(c=>c.type==='image'));
+ const target='created-'+Date.now()+'.bin';await call('create_file',{relative_path:target,data_base64:raw.subarray(0,500).toString('base64')});assert.ok((await readFile(path.join(dir,target))).equals(raw.subarray(0,500)));
+ const duplicate=await client.callTool({name:'create_file',arguments:{root_id:'reports',relative_path:target,data_base64:'AAAA'}});assert.equal(duplicate.isError,true);
+ console.log(JSON.stringify({status:'PASS',server:client.getServerVersion(),tools:catalog.tools.map(t=>t.name),binary_bytes:offset,binary_sha256:createHash('sha256').update(raw).digest('hex'),docx:true,legacy_document_call:true,utf16:true,image_content:true,binary_create:true,duplicate_protection:true}));
+} finally {await client.close();}
