@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { open, lstat, mkdir, opendir, readFile, realpath } from "node:fs/promises";
+import { open, lstat, mkdir, opendir, readFile, realpath, type FileHandle } from "node:fs/promises";
 import type { BigIntStats } from "node:fs";
 import path from "node:path";
 import { TextDecoder } from "node:util";
@@ -229,24 +229,27 @@ export class FileBridgePolicy {
     };
   }
 
-  async listDirectory(rootId: string, relativePath: string, requestedLimit?: number) {
+  async listDirectory(rootId: string, relativePath: string, requestedLimit?: number, offset = 0, expectedVersion?: string) {
     const resolved = await this.resolveForRead(rootId, relativePath);
     const directoryInfo = resolved.info;
     if (!directoryInfo.isDirectory()) throw new PolicyError("NOT_A_DIRECTORY", "The requested path is not a directory.");
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new PolicyError("INVALID_OFFSET", "Use the non-negative next_offset returned by the previous page.");
+    const version = fileVersion(directoryInfo);
+    if (expectedVersion && expectedVersion !== version) throw new PolicyError("DIRECTORY_CHANGED", "Directory changed between pages. Restart listing at offset 0.");
 
     const limit = Math.min(requestedLimit ?? this.limits.maxDirectoryEntries, this.limits.maxDirectoryEntries);
     const entries: Array<{ name: string; kind: "file" | "directory" | "other" }> = [];
     let blocked_entries = 0;
     let truncated = false;
+    let index = 0;
     const directory = await opendir(resolved.target);
     for await (const entry of directory) {
+      if (index < offset) { index++; continue; }
+      if (entries.length >= limit) { truncated = true; break; }
+      index++;
       if (isBlockedPart(entry.name) || entry.isSymbolicLink()) {
         blocked_entries += 1;
         continue;
-      }
-      if (entries.length >= limit) {
-        truncated = true;
-        break;
       }
       entries.push({
         name: entry.name,
@@ -254,8 +257,10 @@ export class FileBridgePolicy {
       });
     }
     await assertUnchanged(resolved.target, directoryInfo);
+    if (fileVersion(await lstat(resolved.target, { bigint: true })) !== version) throw new PolicyError("DIRECTORY_CHANGED", "Directory changed during listing. Restart at offset 0.");
     entries.sort((left, right) => left.name.localeCompare(right.name));
-    return { root_id: rootId, path: logicalPath(relativePath), entries, blocked_entries, truncated };
+    return { root_id: rootId, path: logicalPath(relativePath), entries, blocked_entries, truncated, offset,
+      next_offset: truncated ? index : null, eof: !truncated, directory_version: version };
   }
 
   async readTextFile(rootId: string, relativePath: string, requestedMaxBytes?: number): Promise<ReadTextResult> {
@@ -291,6 +296,94 @@ export class FileBridgePolicy {
     } finally {
       await handle.close();
     }
+  }
+
+  // A page size limits a single MCP response, never the total accessible file size.
+  async withReadHandle<T>(rootId: string, relativePath: string, operation: (handle: FileHandle, info: BigIntStats, version: string) => Promise<T>, expectedVersion?: string): Promise<T> {
+    const resolved = await this.resolveForRead(rootId, relativePath);
+    if (!resolved.info.isFile()) throw new PolicyError("NOT_A_REGULAR_FILE", "Only regular files can be read.");
+    const handle = await open(resolved.target, "r");
+    try {
+      const before = await handle.stat({ bigint: true });
+      if (!sameFileIdentity(resolved.info, before)) throw new PolicyError("PATH_CHANGED", "The file changed while it was opened.");
+      const version = fileVersion(before);
+      if (expectedVersion && expectedVersion !== version) throw new PolicyError("FILE_CHANGED", "The file changed between pages. Restart from offset 0.");
+      const result = await operation(handle, before, version);
+      if (fileVersion(await handle.stat({ bigint: true })) !== version) throw new PolicyError("FILE_CHANGED", "The file changed during the read. Retry from offset 0.");
+      return result;
+    } finally { await handle.close(); }
+  }
+
+  async readFileChunk(rootId: string, relativePath: string, offset = 0, length = 262144, expectedVersion?: string) {
+    assertPage(offset, length);
+    return this.withReadHandle(rootId, relativePath, async (handle, info, version) => {
+      if (BigInt(offset) > info.size) throw new PolicyError("OFFSET_OUT_OF_RANGE", "Offset exceeds file size.");
+      const wanted = Number(info.size - BigInt(offset) < BigInt(length) ? info.size - BigInt(offset) : BigInt(length));
+      const buffer = Buffer.alloc(wanted);
+      let count = 0;
+      while (count < wanted) {
+        const result = await handle.read(buffer, count, wanted - count, offset + count);
+        if (!result.bytesRead) break;
+        count += result.bytesRead;
+      }
+      const bytes = buffer.subarray(0, count);
+      return { root_id: rootId, path: logicalPath(relativePath), file_bytes: Number(info.size), offset,
+        bytes_returned: count, next_offset: offset + count, eof: BigInt(offset + count) === info.size,
+        file_version: version, encoding: "base64", data_base64: bytes.toString("base64"),
+        sha256_returned: createHash("sha256").update(bytes).digest("hex") };
+    }, expectedVersion);
+  }
+
+  async readTextPage(rootId: string, relativePath: string, offset = 0, length = 262144, encoding = "auto", expectedVersion?: string) {
+    assertPage(offset, length);
+    return this.withReadHandle(rootId, relativePath, async (handle, info, version) => {
+      if (BigInt(offset) > info.size) throw new PolicyError("OFFSET_OUT_OF_RANGE", "Offset exceeds file size.");
+      const prefix = Buffer.alloc(3);
+      await handle.read(prefix, 0, 3, 0);
+      const detected = prefix[0] === 255 && prefix[1] === 254 ? "utf-16le" : prefix[0] === 254 && prefix[1] === 255 ? "utf-16be" : "utf-8";
+      const selected = encoding === "auto" ? detected : encoding;
+      if (!["utf-8", "utf-16le", "utf-16be", "windows-1250", "windows-1252", "iso-8859-2"].includes(selected)) throw new PolicyError("ENCODING_UNSUPPORTED", "Choose a supported text encoding or use read_file for original bytes.");
+      if (selected.startsWith("utf-16") && offset % 2) throw new PolicyError("INVALID_OFFSET", "UTF-16 pages must start on an even byte offset.");
+      const wanted = Number(info.size - BigInt(offset) < BigInt(length) ? info.size - BigInt(offset) : BigInt(length));
+      const buffer = Buffer.alloc(wanted);
+      const { bytesRead } = await handle.read(buffer, 0, wanted, offset);
+      let consumed = bytesRead;
+      if (selected.startsWith("utf-16") && BigInt(offset + consumed) < info.size) consumed -= consumed % 2;
+      let text: string | undefined;
+      for (let trim = 0; trim <= (BigInt(offset + bytesRead) < info.size ? 3 : 0); trim++) {
+        if (selected.startsWith("utf-16") && trim % 2) continue;
+        try { text = new TextDecoder(selected, { fatal: true, ignoreBOM: offset !== 0 }).decode(buffer.subarray(0, consumed - trim)); consumed -= trim; break; } catch { /* Find a complete character boundary. */ }
+      }
+      if (text === undefined || text.includes("\u0000")) throw new PolicyError("NON_TEXT_FILE", "Not text in the selected encoding. Use read_document for documents or read_file for any original file; specify encoding for legacy text.");
+      const redacted = redactSecrets(text);
+      return { root_id: rootId, path: logicalPath(relativePath), file_bytes: Number(info.size), offset,
+        bytes_returned: consumed, next_offset: offset + consumed, eof: BigInt(offset + consumed) === info.size,
+        truncated: BigInt(offset + consumed) < info.size, file_version: version, encoding: selected,
+        sha256_returned: createHash("sha256").update(buffer.subarray(0, consumed)).digest("hex"),
+        redactions: redacted.count, text: redacted.text };
+    }, expectedVersion);
+  }
+
+  async createBinaryFile(rootId: string, relativePath: string, encoded: string) {
+    if (encoded.length % 4 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) throw new PolicyError("INVALID_BASE64", "Provide canonical base64 file contents.");
+    const bytes = Buffer.from(encoded, "base64");
+    if (bytes.toString("base64") !== encoded) throw new PolicyError("INVALID_BASE64", "Provide canonical base64 file contents.");
+    const resolved = await this.resolveForCreate(rootId, relativePath);
+    if (!resolved.normalizedRelative) throw new PolicyError("ROOT_WRITE_BLOCKED", "Choose a new filename.");
+    let handle: FileHandle;
+    try { handle = await open(resolved.target, "wx", 0o600); } catch (error) { throw translateCreateError(error); }
+    try {
+      const [opened, named] = await Promise.all([handle.stat({ bigint: true }), lstat(resolved.target, { bigint: true })]);
+      if (!opened.isFile() || named.isSymbolicLink() || !sameFileIdentity(opened, named)) throw new PolicyError("PATH_CHANGED", "The new file changed while it was opened.");
+      await assertUnchanged(resolved.parent.target, resolved.parent.info);
+      await handle.writeFile(bytes); await handle.sync();
+      const finalNamed = await lstat(resolved.target, { bigint: true });
+      if (finalNamed.isSymbolicLink() || !sameFileIdentity(opened, finalNamed)) throw new PolicyError("PATH_CHANGED", "The new file changed during writing.");
+      await assertUnchanged(resolved.parent.target, resolved.parent.info);
+    } catch { throw new PolicyError("WRITE_INCOMPLETE", "A partial new file may exist. Existing files are never overwritten or automatically deleted."); }
+    finally { await handle.close(); }
+    return { root_id: rootId, path: logicalPath(relativePath), bytes_written: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"), created: true };
   }
 
   async searchNames(rootId: string, query: string, startPath = "") {
@@ -696,6 +789,15 @@ function exactBigInt(value: number | bigint): bigint | null {
   return Number.isSafeInteger(value) ? BigInt(value) : null;
 }
 
+function fileVersion(info: BigIntStats): string {
+  return createHash("sha256").update([info.dev, info.ino, info.size, info.mtimeNs, info.ctimeNs].join(":")).digest("hex");
+}
+
+function assertPage(offset: number, length: number): void {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 4 || length > 1024 * 1024)
+    throw new PolicyError("INVALID_PAGE", "Offset must be a non-negative safe integer; request 4 to 1048576 bytes per page. Continue with next_offset until eof.");
+}
+
 function decodeUtf8(buffer: Buffer, truncated: boolean): string {
   for (let trim = 0; trim <= (truncated ? 3 : 0); trim += 1) {
     try {
@@ -707,7 +809,7 @@ function decodeUtf8(buffer: Buffer, truncated: boolean): string {
   throw new PolicyError("NON_TEXT_FILE", "The requested file is not valid UTF-8 text.");
 }
 
-function redactSecrets(input: string): { text: string; count: number } {
+export function redactSecrets(input: string): { text: string; count: number } {
   let text = input;
   let count = 0;
   const replace = (pattern: RegExp, replacement: string | ((...values: string[]) => string)) => {

@@ -39,6 +39,7 @@ const required = [
   "docs/TUNNEL_ROLES.md",
   "docs/VPS_DEPLOYMENT.md",
   "mcp/server.mjs",
+  "mcp/document-worker.mjs",
   "scripts/image-vulnerability-gate.mjs",
   "scripts/image-vulnerability-gate.test.mjs",
   "scripts/docker-role-config.test.mjs",

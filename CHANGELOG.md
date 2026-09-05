@@ -1,3 +1,10 @@
+## 0.2.3 - 2026-09-05
+
+- Full-file binary reads with offsets, SHA-256 and file-version checks.
+- Paginated text with UTF-16/BOM and legacy-encoding support.
+- Isolated PDF/Office/OpenDocument text extraction and native image results.
+- Create-only binary file creation; existing-file protections retained.
+
 # Changelog
 
 ## 0.2.2 - 2026-08-30

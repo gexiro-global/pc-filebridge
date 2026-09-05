@@ -6,7 +6,7 @@ ARG TUNNEL_ASSETS_IMAGE=ghcr.io/openai/tunnel-client:v0.0.13@sha256:4c6b1441a6ca
 ARG TUNNEL_COMMIT=4b5267f823be0b046bb883aacb51603cfde3a0ea
 ARG OTEL_VERSION=v1.44.0
 ARG X_NET_VERSION=v0.56.0
-ARG APP_VERSION=0.2.2
+ARG APP_VERSION=0.2.3
 
 FROM ${NODE_IMAGE} AS build
 WORKDIR /src
@@ -14,7 +14,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN npm run build && npm prune --omit=dev --ignore-scripts
 
 FROM ${GO_IMAGE} AS tunnel-builder
 ARG TARGETOS=linux
@@ -73,8 +73,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
-COPY --from=build --chown=10001:10001 /src/mcp/server.mjs /app/mcp/server.mjs
-COPY --from=build --chown=10001:10001 /src/node_modules/zod /app/node_modules/zod
+COPY --from=build --chown=10001:10001 /src/mcp /app/mcp
+COPY --from=build --chown=10001:10001 /src/node_modules /app/node_modules
 COPY --chown=10001:10001 config/roots.infrastructure.example.json /app/config/roots.infrastructure.json
 COPY deploy/docker/entrypoint.sh /usr/local/bin/pc-filebridge-entrypoint
 COPY deploy/docker/healthcheck.mjs /usr/local/lib/pc-filebridge/healthcheck.mjs
