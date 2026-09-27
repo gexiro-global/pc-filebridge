@@ -78,7 +78,7 @@
     "fast-xml-parser": "5.11.1",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",
-    "zod": "4.5.4"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "26.4.0",
