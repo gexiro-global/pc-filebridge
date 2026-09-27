@@ -1,6 +1,6 @@
 {
   "name": "pc-filebridge",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "description": "Read files and create new files on explicitly allowed PC folders without overwrite or delete capabilities.",
   "author": {
     "name": "Gexiro Global Enterprises Ltd."

@@ -4,14 +4,17 @@ import { execFileSync } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const image = process.env.FILEBRIDGE_IMAGE ?? "pc-filebridge:0.2.2";
+const image = process.env.FILEBRIDGE_IMAGE ?? "pc-filebridge:0.2.4";
 const expectedTunnelVersion = "0.0.13";
 const expectedNodeVersion = "v24.20.0";
 const expectedTools = [
   "create_directory",
+  "create_file",
   "create_text_file",
   "list_directory",
   "list_roots",
+  "read_document",
+  "read_file",
   "read_text_file",
   "search_file_names",
   "stat_path",
@@ -74,7 +77,7 @@ try {
 }
 if (!failedClosed) throw new Error("Container did not fail closed when secrets were absent.");
 
-const client = new Client({ name: "pc-filebridge-container-smoke", version: "0.2.2" });
+const client = new Client({ name: "pc-filebridge-container-smoke", version: "0.2.4" });
 const transport = new StdioClientTransport({
   command: "docker",
   args: [
@@ -130,4 +133,4 @@ try {
   await client.close();
 }
 
-process.stdout.write(`CONTAINER_SMOKE_PASS image=${image} node=${expectedNodeVersion} tunnel_client=${expectedTunnelVersion} healthcheck=tunnel-aware logs=warn package_manager=absent tools=7 forbidden_mutations=0 create_only=preserved missing_secrets=fail_closed\n`);
+process.stdout.write(`CONTAINER_SMOKE_PASS image=${image} node=${expectedNodeVersion} tunnel_client=${expectedTunnelVersion} healthcheck=tunnel-aware logs=warn package_manager=absent tools=10 forbidden_mutations=0 create_only=preserved missing_secrets=fail_closed\n`);

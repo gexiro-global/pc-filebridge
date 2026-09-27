@@ -6,15 +6,18 @@ import { fileURLToPath } from "node:url";
 
 const expectedTools = [
   "create_directory",
+  "create_file",
   "create_text_file",
   "list_directory",
   "list_roots",
+  "read_document",
+  "read_file",
   "read_text_file",
   "search_file_names",
   "stat_path",
 ];
 
-const client = new Client({ name: "pc-filebridge-smoke", version: "0.2.2" });
+const client = new Client({ name: "pc-filebridge-smoke", version: "0.2.4" });
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDirectory = await mkdtemp(path.join(pluginRoot, ".pc-filebridge-mcp-smoke-"));
 const configPath = path.join(fixtureDirectory, "roots.json");
@@ -48,7 +51,7 @@ try {
   }
   const roots = await client.callTool({ name: "list_roots", arguments: {} });
   if (roots.isError) throw new Error("list_roots returned an MCP error.");
-  process.stdout.write("MCP_SMOKE_PASS tools=7 forbidden_mutations=0 list_roots=ok\n");
+  process.stdout.write("MCP_SMOKE_PASS tools=10 forbidden_mutations=0 list_roots=ok\n");
 } finally {
   await client.close();
   await rm(fixtureDirectory, { recursive: true, force: true });

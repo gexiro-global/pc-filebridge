@@ -78,7 +78,7 @@ try {
 
   const catalog = await request("tools/list");
   const actualTools = catalog.tools.map((tool) => tool.name).sort();
-  const expectedTools = ["create_directory", "create_text_file", "list_directory", "list_roots", "read_text_file", "search_file_names", "stat_path"];
+  const expectedTools = ["create_directory", "create_file", "create_text_file", "list_directory", "list_roots", "read_document", "read_file", "read_text_file", "search_file_names", "stat_path"];
   if (JSON.stringify(actualTools) !== JSON.stringify(expectedTools)) throw new Error("MCP_TOOL_CATALOG_MISMATCH");
 
   const response = await request("tools/call", { name: "list_roots", arguments: {} });

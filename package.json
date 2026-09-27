@@ -1,7 +1,7 @@
 {
   "name": "pc-filebridge",
-  "version": "0.2.2",
-  "description": "Create-only filesystem MCP server for ChatGPT, Codex, and other MCP clients.",
+  "version": "0.2.4",
+  "description": "Shared filesystem MCP: full-file transfer, document review and create-only writes.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -51,9 +51,9 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --external:zod --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build": "esbuild src/server.ts --bundle --external:zod --platform=node --format=esm --target=node22 --outfile=mcp/server.mjs --banner:js=\"#!/usr/bin/env node\" && esbuild src/document-worker.ts --bundle --external:pdfjs-dist/* --platform=node --format=esm --target=node22 --outfile=mcp/document-worker.mjs --minify-whitespace",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run test/filePolicy.test.ts",
+    "test": "vitest run test/filePolicy.test.ts test/fullFileAccess.test.ts",
     "test:windows-8dot3": "vitest run test/windows-8dot3.integration.windows.test.ts",
     "test:mcp": "node scripts/mcp-smoke.mjs",
     "test:versions": "node scripts/version-consistency.mjs",
@@ -75,6 +75,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
+    "fast-xml-parser": "5.11.1",
+    "fflate": "0.8.3",
+    "pdfjs-dist": "6.3.289",
     "zod": "4.5.4"
   },
   "devDependencies": {

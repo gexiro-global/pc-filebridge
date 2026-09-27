@@ -17,4 +17,4 @@ PC FileBridge starts from the exact OpenAI tunnel-client v0.0.13 source revision
 - OpenTelemetry Go: v1.44.0
 - `golang.org/x/net`: v0.56.0
 
-The unchanged `cloudflared` executable comes from the digest-pinned official OpenAI v0.0.13 image. Re-run the complete image gate whenever the tunnel source revision, dependency pins, Node.js image, cloudflared image, scanner images, or vulnerability database changes.
+The unchanged `cloudflared` executable comes from the digest-pinned official Cloudflare 2026.9.3 image. Its embedded gRPC module is v1.83.2. The runtime also installs Debian's fixed `libpcre2-8-0` 10.42-1+deb12u1 over the digest-pinned Node.js base. Re-run the complete image gate whenever the tunnel source revision, dependency pins, Node.js image, Debian package, cloudflared image, scanner images, or vulnerability database changes.

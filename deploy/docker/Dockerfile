@@ -2,11 +2,11 @@
 
 ARG NODE_IMAGE=node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e
 ARG GO_IMAGE=golang:1.27.0-bookworm@sha256:ded31c68586d2e49e760acc2e65a884b23d032e9bbbed0ae0c55abd3fcaf4452
-ARG TUNNEL_ASSETS_IMAGE=ghcr.io/openai/tunnel-client:v0.0.13@sha256:4c6b1441a6ca2506ce04231c1022e6ada32ec488f41d300a4f29f7675cfb4337
+ARG CLOUDFLARED_IMAGE=cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
 ARG TUNNEL_COMMIT=4b5267f823be0b046bb883aacb51603cfde3a0ea
 ARG OTEL_VERSION=v1.44.0
 ARG X_NET_VERSION=v0.56.0
-ARG APP_VERSION=0.2.2
+ARG APP_VERSION=0.2.4
 
 FROM ${NODE_IMAGE} AS build
 WORKDIR /src
@@ -14,7 +14,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY tsconfig.json ./
 COPY src ./src
-RUN npm run build
+RUN npm run build && npm prune --omit=dev --ignore-scripts
 
 FROM ${GO_IMAGE} AS tunnel-builder
 ARG TARGETOS=linux
@@ -45,7 +45,7 @@ RUN go get \
       ./cmd/client \
     && go clean -cache -modcache
 
-FROM ${TUNNEL_ASSETS_IMAGE} AS tunnel-assets
+FROM ${CLOUDFLARED_IMAGE} AS cloudflared-assets
 
 FROM ${NODE_IMAGE} AS runtime
 ARG APP_VERSION
@@ -69,18 +69,22 @@ RUN groupadd --gid 10001 filebridge \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin filebridge \
     && install -d -o 10001 -g 10001 /app/config /data/primary /data/secondary /usr/share/pc-filebridge/tunnel-client
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u1 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
 WORKDIR /app
-COPY --from=build --chown=10001:10001 /src/mcp/server.mjs /app/mcp/server.mjs
-COPY --from=build --chown=10001:10001 /src/node_modules/zod /app/node_modules/zod
+COPY --from=build --chown=10001:10001 /src/mcp /app/mcp
+COPY --from=build --chown=10001:10001 /src/node_modules /app/node_modules
 COPY --chown=10001:10001 config/roots.infrastructure.example.json /app/config/roots.infrastructure.json
 COPY deploy/docker/entrypoint.sh /usr/local/bin/pc-filebridge-entrypoint
 COPY deploy/docker/healthcheck.mjs /usr/local/lib/pc-filebridge/healthcheck.mjs
 COPY deploy/docker/validate-role-config.mjs /usr/local/lib/pc-filebridge/validate-role-config.mjs
 COPY --from=tunnel-builder /out/tunnel-client /usr/local/bin/tunnel-client
-COPY --from=tunnel-assets /usr/bin/cloudflared /usr/local/bin/cloudflared
+COPY --from=cloudflared-assets /usr/local/bin/cloudflared /usr/local/bin/cloudflared
 COPY --from=tunnel-builder /src/LICENSE /usr/share/pc-filebridge/tunnel-client/LICENSE
 COPY deploy/docker/THIRD_PARTY_NOTICES.md /usr/share/pc-filebridge/tunnel-client/THIRD_PARTY_NOTICES.md
 
