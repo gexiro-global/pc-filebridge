@@ -82,7 +82,7 @@ For ChatGPT, create a dedicated Secure MCP Tunnel and a dedicated runtime API ke
 
 The tunnel runtime must run on the computer that owns the configured folders. A VPS deployment can remain available while personal devices are offline, but it exposes files stored in its persistent server volume; it does not make a powered-off PC disk remotely readable. See [VPS deployment](docs/VPS_DEPLOYMENT.md).
 
-Version 0.2.4 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
+Version 0.2.5 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
 
 ChatGPT cannot securely infer which physical device opened a conversation. Operators must select the clearly named PC, laptop, or infrastructure connector. Local Codex can instead use its device-local stdio configuration.
 
@@ -96,7 +96,7 @@ File Backed Virtual, USB, SD, MMC, 1394, and removable volumes are blocked until
 .\scripts\Revoke-PCFileBridgeVolumeApproval.ps1 -Role pc-local -VolumeId 'vol-0123456789abcdef'
 ```
 
-The monitor requires three identical topology snapshots, writes a separate candidate, runs a real local seven-tool MCP probe, and only then promotes the candidate and last-known-good state. Failed and crash-interrupted candidates roll back or recover transactionally and are suppressed until topology changes. The connector is not reinstalled: callers discover the live set through `list_roots`.
+The monitor requires three identical topology snapshots, writes a separate candidate, runs a real local ten-tool MCP probe, and only then promotes the candidate and last-known-good state. Failed and crash-interrupted candidates roll back or recover transactionally and are suppressed until topology changes. The connector is not reinstalled: callers discover the live set through `list_roots`.
 
 See [tunnel roles and device isolation](docs/TUNNEL_ROLES.md) for the exact role contract, gate workflow, split-brain recovery, and availability limits.
 
@@ -142,7 +142,7 @@ npm run check
 npm pack --dry-run --ignore-scripts
 ```
 
-`npm run check` performs a tracked-file secret scan, type checking, policy tests, a production build, license and package-content checks, and a real MCP stdio smoke test that requires exactly seven tools and zero forbidden mutation tools. Pull requests run on Ubuntu and Windows with Node.js 22 and 24. Windows jobs must create and reject a real 8.3 alternate-name fixture and cannot silently skip that check.
+`npm run check` performs a tracked-file secret scan, type checking, policy tests, a production build, license and package-content checks, and a real MCP stdio smoke test that requires exactly ten tools and zero forbidden mutation tools. Pull requests run on Ubuntu and Windows with Node.js 22 and 24. Windows jobs must create and reject a real 8.3 alternate-name fixture and cannot silently skip that check.
 
 ## Release verification
 

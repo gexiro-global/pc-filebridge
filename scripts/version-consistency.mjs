@@ -21,6 +21,7 @@ const exactNeedles = new Map([
   ["src/server.ts", `version: "${version}"`],
   ["mcp/server.mjs", `version: "${version}"`],
   ["scripts/mcp-smoke.mjs", `version: "${version}"`],
+  ["scripts/mcp-config-smoke.mjs", `version: "${version}"`],
   ["scripts/container-smoke.mjs", `version: "${version}"`],
   ["scripts/run-image-vulnerability-gate.sh", `pc-filebridge:${version}`],
   [".github/workflows/ci.yml", `pc-filebridge:${version}`],

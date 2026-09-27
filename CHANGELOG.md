@@ -1,3 +1,8 @@
+## 0.2.5 - 2026-09-27
+
+- Correct the published MCP tool count to ten across architecture, deployment, release verification, and launch documentation.
+- Align the configuration probe client version with the package and check it in the version consistency gate.
+
 ## 0.2.4 - 2026-09-27
 
 - Preserve the complete 0.2.3 file and document workflow in the canonical repository history.

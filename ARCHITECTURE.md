@@ -1,6 +1,6 @@
 # Architecture
 
-PC FileBridge is a stdio MCP server. A local MCP client or the authenticated Secure MCP Tunnel runtime launches `mcp/server.mjs`; the server loads one operator-controlled JSON configuration and exposes seven bounded tools.
+PC FileBridge is a stdio MCP server. A local MCP client or the authenticated Secure MCP Tunnel runtime launches `mcp/server.mjs`; the server loads one operator-controlled JSON configuration and exposes ten bounded tools.
 
 ## Components
 

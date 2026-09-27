@@ -34,7 +34,7 @@ Inspect the source archive and SBOM before execution. Install the runtime archiv
 Expected result:
 
 ```text
-MCP_SMOKE_PASS tools=7 forbidden_mutations=0 list_roots=ok
+MCP_SMOKE_PASS tools=10 forbidden_mutations=0 list_roots=ok
 ```
 
 A matching hash alone is not proof that the package installs or preserves the MCP security invariants. The release is accepted only after all four public assets are downloaded again, basename-only checksums pass, all four provenance subjects match, and the runtime archive passes this clean-room receiver simulation.
