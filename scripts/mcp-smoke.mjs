@@ -17,7 +17,7 @@ const expectedTools = [
   "stat_path",
 ];
 
-const client = new Client({ name: "pc-filebridge-smoke", version: "0.2.4" });
+const client = new Client({ name: "pc-filebridge-smoke", version: "0.2.5" });
 const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDirectory = await mkdtemp(path.join(pluginRoot, ".pc-filebridge-mcp-smoke-"));
 const configPath = path.join(fixtureDirectory, "roots.json");

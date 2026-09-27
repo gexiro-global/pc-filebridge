@@ -1,6 +1,6 @@
 # Tunnel roles and device isolation
 
-PC FileBridge 0.2.4 uses three distinct Secure MCP Tunnel identities. A tunnel identifier must never be shared by two roles or by two active pollers.
+PC FileBridge 0.2.5 uses three distinct Secure MCP Tunnel identities. A tunnel identifier must never be shared by two roles or by two active pollers.
 
 | Role | Required tunnel name | Runtime alias | Root ids |
 |---|---|---|---|
@@ -18,7 +18,7 @@ The stable opaque `volume_id` is derived from a versioned schema plus host id, d
 
 File Backed Virtual, USB, SD, MMC, 1394, and removable volumes require an explicit approval for the exact opaque volume id and observed bus type. The approval registry lives outside the repository under `%LOCALAPPDATA%\PCFileBridge\private`, disables inheritance, and grants access only to the current user and SYSTEM. Network, optical, unknown, ReFS, unhealthy, offline, and incomplete candidates remain blocked regardless of approval.
 
-The monitor requires three consecutive matching snapshots. It writes a separate candidate, validates role/path policy, starts only the matching runtime, performs a real local MCP probe for exactly seven tools and the expected roots, records the applied hash, and only then promotes last-known-good state. Six injected crash windows recover transactionally; a role-scoped named mutex prevents a second monitor. Rejected topologies are suppressed until their topology hash changes.
+The monitor requires three consecutive matching snapshots. It writes a separate candidate, validates role/path policy, starts only the matching runtime, performs a real local MCP probe for exactly ten tools and the expected roots, records the applied hash, and only then promotes last-known-good state. Six injected crash windows recover transactionally; a role-scoped named mutex prevents a second monitor. Rejected topologies are suppressed until their topology hash changes.
 
 Operator approval workflow:
 

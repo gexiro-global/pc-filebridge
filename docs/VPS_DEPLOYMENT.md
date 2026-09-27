@@ -58,7 +58,7 @@ docker inspect --format '{{.State.Health.Status}}' pc-filebridge
 docker logs --tail 100 pc-filebridge
 ```
 
-Report success only when the container is running, the healthcheck reports a recent successful command poll, the tunnel is connected, and a client can list exactly seven tools with no forbidden mutation tools. Then test one new-file create and verify that a second create at the same path returns `TARGET_EXISTS` without changing the original bytes.
+Report success only when the container is running, the healthcheck reports a recent successful command poll, the tunnel is connected, and a client can list exactly ten tools with no forbidden mutation tools. Then test one new-file create and verify that a second create at the same path returns `TARGET_EXISTS` without changing the original bytes.
 
 ## Recovery
 
