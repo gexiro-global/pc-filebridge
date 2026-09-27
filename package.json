@@ -1,6 +1,6 @@
 {
   "name": "pc-filebridge",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Shared filesystem MCP: full-file transfer, document review and create-only writes.",
   "license": "Apache-2.0",
   "repository": {

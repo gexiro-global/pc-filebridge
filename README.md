@@ -82,7 +82,7 @@ For ChatGPT, create a dedicated Secure MCP Tunnel and a dedicated runtime API ke
 
 The tunnel runtime must run on the computer that owns the configured folders. A VPS deployment can remain available while personal devices are offline, but it exposes files stored in its persistent server volume; it does not make a powered-off PC disk remotely readable. See [VPS deployment](docs/VPS_DEPLOYMENT.md).
 
-Version 0.2.3 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
+Version 0.2.4 separates the main PC, laptop, and infrastructure into three role-bound tunnels. Their tunnel identifiers, runtime aliases, and root ids must never be reused across roles. The Windows and Docker launchers verify the operator-visible tunnel name before starting, and local ChatGPT connectors require an explicit `armed` operator gate. This prevents a PC and VPS poller from silently serving different backends through one connector.
 
 ChatGPT cannot securely infer which physical device opened a conversation. Operators must select the clearly named PC, laptop, or infrastructure connector. Local Codex can instead use its device-local stdio configuration.
 

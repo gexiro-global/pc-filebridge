@@ -1,3 +1,10 @@
+## 0.2.4 - 2026-09-27
+
+- Preserve the complete 0.2.3 file and document workflow in the canonical repository history.
+- Replace the image's cloudflared executable with the digest-pinned official Cloudflare 2026.9.3 build containing gRPC v1.83.2.
+- Upgrade the runtime's Debian `libpcre2-8-0` to the fixed 10.42-1+deb12u1 package.
+- Keep the image vulnerability gate and create-only filesystem policy in force.
+
 ## 0.2.3 - 2026-09-05
 
 - Full-file binary reads with offsets, SHA-256 and file-version checks.

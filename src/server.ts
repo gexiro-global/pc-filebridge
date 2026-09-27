@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const configPath = path.resolve(process.env.FILEBRIDGE_CONFIG ?? path.join(pluginRoot, "config", "roots.local.json"));
   const policy = await FileBridgePolicy.fromFile(configPath);
   const server = new McpServer(
-    { name: "pc-filebridge", version: "0.2.3" },
+    { name: "pc-filebridge", version: "0.2.4" },
     {
       instructions:
         "Create-only filesystem bridge. Use only configured root IDs and relative paths. " +

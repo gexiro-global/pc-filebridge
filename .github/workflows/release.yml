@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing immutable semantic release tag, for example v0.2.3
+        description: Existing immutable semantic release tag, for example v0.2.4
         required: true
         type: string
 
@@ -72,7 +72,7 @@ jobs:
 
       - name: Verify hardened VPS container
         run: |
-          docker build --pull -f deploy/docker/Dockerfile -t pc-filebridge:0.2.3 .
+          docker build --pull -f deploy/docker/Dockerfile -t pc-filebridge:0.2.4 .
           npm run check:container
           docker compose -f deploy/docker/compose.example.yml -f deploy/docker/compose.host-ca.example.yml config --quiet
           sh scripts/run-image-vulnerability-gate.sh
