@@ -13,7 +13,7 @@
 | Severity | Threat | Primary controls | Residual risk |
 |---|---|---|---|
 | Critical | overwrite or deletion of existing data | no mutation tools; exclusive file create; existing directory refusal; invariant tests | host or dependency compromise |
-| Critical | credential disclosure | blocked names/extensions/segments; bounded UTF-8 reads; secret redaction; credentials outside Git | unknown secret formats in ordinary files |
+| Critical | credential disclosure | blocked names/extensions/segments; bounded text/document pages with pattern redaction; credentials outside Git | unknown secret formats in ordinary files; `read_file` returns original bytes without redaction |
 | High | path escape | relative paths; canonical containment; link/junction checks; blocked ADS and reserved names | same-user path races |
 | High | Windows alternate-name policy bypass | stored-name lookup by exact BigInt file identity; alternate spelling rejection; stored-name denylist; real 8.3 integration test | filesystem races or a more-privileged local process |
 | High | hard-link aliasing | ambiguous identity rejection and multiply linked regular-file refusal | privileged filesystem mutation after validation |

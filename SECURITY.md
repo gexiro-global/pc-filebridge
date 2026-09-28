@@ -18,7 +18,8 @@ Use [GitHub private vulnerability reporting](https://github.com/gexiro-global/pc
 - File creation uses `open(..., "wx")`; directory creation is non-recursive and refuses existing targets.
 - The tool catalog contains no overwrite, append, patch, rename, move, link, delete, remove, or unlink capability.
 - Reads, listings, searches, and writes have server-side bounds.
-- Reads accept UTF-8 only and redact common credential patterns.
+- `read_text_file` supports UTF-8, UTF-16, and selected legacy encodings; it and `read_document` redact common credential patterns in extracted text.
+- `read_file` returns original bytes without redaction. Read limits apply per response, not to the total file, so configure the narrowest useful roots.
 - Sensitive system and credential names, including `.ppk`, Java keystores, and SSH private-key variants, are hidden from listings/search and blocked directly.
 - A complete filesystem root requires the exact `FILEBRIDGE_ALLOW_DRIVE_ROOT=I_ACCEPT_FULL_DRIVE_ACCESS_RISK` opt-in.
 - PC, laptop, and infrastructure runtimes use distinct tunnel identities. Launchers validate the exact tunnel name, role-specific root IDs and paths, and local operator gate before connection; one tunnel identifier must have only one active poller.
@@ -32,6 +33,7 @@ Files and filenames are untrusted input and may contain prompt injection. MCP cl
 
 - An allowed folder may still contain ordinary private documents not recognized by filename filters.
 - Pattern redaction cannot detect every custom secret format.
+- Raw reads can disclose secrets stored in otherwise allowed files; text redaction does not apply to `read_file`.
 - A malicious same-user or more-privileged local process may attempt path races. Root, parent, component, and open-handle identity checks reduce risk, but portable Node.js does not provide Windows `openat2` semantics and cannot eliminate every race.
 - Full-drive mode expands exposure even while deny rules remain active.
 - A failed physical write may leave a partial new file. The server intentionally does not delete it.
