@@ -4,7 +4,7 @@
 [![CodeQL](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/codeql.yml)
 [![Release](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml/badge.svg)](https://github.com/gexiro-global/pc-filebridge/actions/workflows/release.yml)
 
-PC FileBridge is a local Model Context Protocol (MCP) server that gives ChatGPT, Codex, and other MCP clients bounded access to operator-selected folders. It can read UTF-8 text and create new files or directories, but it cannot overwrite, append, rename, move, link, or delete.
+PC FileBridge is a local Model Context Protocol (MCP) server that gives ChatGPT, Codex, and other MCP clients bounded access to operator-selected folders. It can read original bytes from allowed files in bounded chunks, extract text from supported documents, read text in supported encodings, and create new files or directories. It cannot overwrite, append, rename, move, link, or delete.
 
 The create-only guarantee is enforced by the server. New files use operating-system exclusive create mode (`wx`), so an existing target returns `TARGET_EXISTS` and remains unchanged.
 
@@ -15,7 +15,7 @@ The create-only guarantee is enforced by the server. New files use operating-sys
 - Each existing component is matched to the filesystem-stored directory entry by exact file identity. Windows 8.3 and other alternate spellings are rejected; case-only spelling differences remain allowed on Windows.
 - Missing, zero, unstable, or ambiguous file identity fails closed. Regular files with multiple hard links are rejected.
 - Sensitive folders and credential filenames are hidden and rejected, including `.ssh`, `.aws`, `.azure`, `.codex`, `.git`, `AppData`, `.env*`, private-key formats, PuTTY `.ppk`, Java keystores, and SSH `id_*` private-key names.
-- Text reads are UTF-8 only, byte-bounded, and redact common credential patterns.
+- Text and document reads are page-bounded and redact common credential patterns. `read_file` returns original bytes without redaction; use narrow roots for sensitive data.
 - Directory listings and filename searches are bounded.
 - The server has no network client and does not execute shell commands.
 - A complete drive root requires an exact, explicit risk opt-in.
@@ -29,10 +29,13 @@ These controls reduce risk but cannot determine whether every ordinary document 
 | `list_roots` | List configured roots without revealing absolute host paths |
 | `list_directory` | List bounded, non-sensitive directory entries |
 | `stat_path` | Read metadata for one existing path |
-| `read_text_file` | Read a bounded, redacted UTF-8 prefix |
+| `read_text_file` | Read paginated, redacted text in UTF-8, UTF-16, or selected legacy encodings |
+| `read_file` | Read original bytes of an allowed file as paginated base64 chunks with SHA-256 |
+| `read_document` | Extract paginated text from supported PDF, Office, and OpenDocument files |
 | `search_file_names` | Search names, never file contents |
 | `create_directory` | Create exactly one new directory |
 | `create_text_file` | Create exactly one new UTF-8 file with exclusive create |
+| `create_file` | Create one new file from canonical base64 bytes with exclusive create |
 
 There are no delete, overwrite, append, patch, rename, move, remove, or unlink tools.
 

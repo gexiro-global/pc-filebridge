@@ -17,7 +17,7 @@ PC FileBridge is a stdio MCP server. A local MCP client or the authenticated Sec
 1. The client requests one named tool with a configured `root_id` and relative path.
 2. The server validates the schema and delegates to the file policy.
 3. The policy resolves and canonicalizes the path, rejects sensitive components and link escapes, enforces the operation-specific bounds, and performs the filesystem operation.
-4. The server returns bounded metadata or redacted UTF-8 text. Absolute host paths are not returned.
+4. The server returns bounded metadata, redacted text pages, or original file bytes as bounded base64 chunks. Raw bytes from `read_file` are not redacted. Absolute host paths are not returned.
 
 The MCP server initiates no network connection and executes no shell command. In a remote deployment, the separate tunnel-client process makes the outbound authenticated connection; it does not change the filesystem policy.
 
