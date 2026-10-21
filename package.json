@@ -74,7 +74,7 @@
     "check": "npm run verify"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
     "fast-xml-parser": "5.11.1",
     "fflate": "0.8.3",
     "pdfjs-dist": "6.3.289",
