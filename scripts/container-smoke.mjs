@@ -6,7 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const image = process.env.FILEBRIDGE_IMAGE ?? "pc-filebridge:0.2.5";
 const expectedTunnelVersion = "0.0.13";
-const expectedNodeVersion = "v24.20.0";
+const expectedNodeVersion = "v24.22.2";
 const expectedTools = [
   "create_directory",
   "create_file",
