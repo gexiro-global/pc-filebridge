@@ -70,7 +70,7 @@ RUN groupadd --gid 10001 filebridge \
     && install -d -o 10001 -g 10001 /app/config /data/primary /data/secondary /usr/share/pc-filebridge/tunnel-client
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u1 \
+    && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN rm -rf /usr/local/lib/node_modules/npm \
