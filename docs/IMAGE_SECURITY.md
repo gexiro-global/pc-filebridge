@@ -15,6 +15,6 @@ The VPS image is scanned as a complete runtime, not only as an npm project. Rele
 PC FileBridge starts from the exact OpenAI tunnel-client v0.0.13 source revision `4b5267f823be0b046bb883aacb51603cfde3a0ea`. The Docker build verifies that commit, applies only explicit dependency upgrades, runs the upstream Go test suite, and then builds the client:
 
 - OpenTelemetry Go: v1.44.0
-- `golang.org/x/net`: v0.56.0
+- `golang.org/x/net`: v0.62.0
 
-The unchanged `cloudflared` executable comes from the digest-pinned official Cloudflare 2026.9.3 image. Its embedded gRPC module is v1.83.2. The runtime also installs Debian's fixed `libpcre2-8-0` 10.42-1+deb12u1 over the digest-pinned Node.js base. Re-run the complete image gate whenever the tunnel source revision, dependency pins, Node.js image, Debian package, cloudflared image, scanner images, or vulnerability database changes.
+The unchanged `cloudflared` executable comes from the digest-pinned official Cloudflare 2026.10.6 image (Go 1.27.3, `golang.org/x/net` v0.61.0, gRPC v1.83.2, `go-jose/v4` v4.1.6). The runtime also installs Debian's fixed `libpcre2-8-0` 10.42-1+deb12u2 over the digest-pinned Node.js base. Re-run the complete image gate whenever the tunnel source revision, dependency pins, Node.js image, Debian package, cloudflared image, scanner images, or vulnerability database changes.

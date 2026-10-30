@@ -1,3 +1,9 @@
+## Unreleased
+
+- Refresh the hardened VPS image bases: Node.js 24.22.2 (October 2026 Node.js security release, including the Brotli RCE), Go 1.27.3 for the tunnel-client build, cloudflared 2026.10.6, `golang.org/x/net` v0.62.0, and a current Debian bookworm digest.
+- Pin the runtime's Debian `libpcre2-8-0` to 10.42-1+deb12u2, since bookworm-security superseded deb12u1.
+- Resolve all `npm audit` findings: `@modelcontextprotocol/sdk` 1.32.2, `zod` 4.6.7, and refreshed transitive packages.
+
 ## 0.2.5 - 2026-09-27
 
 - Correct the published MCP tool count to ten across architecture, deployment, release verification, and launch documentation.
